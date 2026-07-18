@@ -1,0 +1,617 @@
+/* =========================================================
+   CHEST COMPANION V2
+   Crystal Storm Theme
+
+   Built by Cherubim
+   Artwork by Eff
+========================================================= */
+
+:root {
+  --background: #070611;
+
+  --panel:
+    linear-gradient(
+      145deg,
+      rgba(27, 20, 52, 0.88),
+      rgba(8, 7, 21, 0.86)
+    );
+
+  --panel-dark: rgba(8, 7, 21, 0.94);
+
+  --border: rgba(183, 118, 255, 0.28);
+  --border-bright: rgba(205, 158, 255, 0.52);
+
+  --text: #faf7ff;
+  --muted: #b8b0c9;
+
+  --purple: #b65cff;
+  --purple-dark: #7622d1;
+  --purple-soft: rgba(182, 92, 255, 0.15);
+
+  --blue: #599dff;
+  --gold: #ffc85a;
+  --orange: #ff7b20;
+  --danger: #ff6686;
+  --success: #73e5b1;
+
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+
+  font-family:
+    Inter,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+}
+
+
+/* =========================================================
+   RESET
+========================================================= */
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-height: 100%;
+  background: var(--background);
+  color: var(--text);
+  scroll-behavior: smooth;
+}
+
+body {
+  min-height: 100vh;
+  margin: 0;
+  overflow-x: hidden;
+  background: var(--background);
+  color: var(--text);
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin-top: 0;
+}
+
+.hidden {
+  display: none !important;
+}
+
+
+/* =========================================================
+   EFF ARTWORK BACKGROUND
+========================================================= */
+
+.app-background {
+  position: fixed;
+  inset: 0;
+  z-index: -3;
+
+  background-image: url("assets/eff-artwork.jpeg");
+  background-position: center top;
+  background-repeat: no-repeat;
+  background-size: cover;
+
+  transform: scale(1.02);
+}
+
+.app-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(3, 2, 12, 0.12) 0%,
+      rgba(5, 4, 16, 0.42) 28%,
+      rgba(6, 5, 18, 0.82) 58%,
+      rgba(6, 5, 18, 0.97) 82%,
+      rgba(6, 5, 18, 1) 100%
+    ),
+    radial-gradient(
+      circle at 50% 34%,
+      rgba(150, 60, 255, 0.06),
+      rgba(0, 0, 0, 0.28)
+    );
+}
+
+
+/* =========================================================
+   GLASS EFFECT
+========================================================= */
+
+.glass-panel {
+  background: var(--panel);
+
+  border:
+    1px solid
+    var(--border);
+
+  box-shadow:
+    0 18px 70px rgba(0, 0, 0, 0.38),
+    inset 0 1px rgba(255, 255, 255, 0.05);
+
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+
+/* =========================================================
+   LOADING SCREEN
+========================================================= */
+
+.loading-screen {
+  min-height: 100vh;
+
+  display: grid;
+  align-items: end;
+
+  padding:
+    24px
+    18px
+    calc(34px + var(--safe-bottom));
+}
+
+.loading-card {
+  width: 100%;
+  max-width: 720px;
+
+  margin: 0 auto;
+
+  padding: 26px 22px;
+
+  border-radius: 28px;
+
+  text-align: center;
+}
+
+.loading-card h1 {
+  margin:
+    7px
+    0
+    12px;
+
+  font-size:
+    clamp(
+      1.7rem,
+      7vw,
+      2.6rem
+    );
+
+  line-height: 1.08;
+}
+
+.credit-line {
+  margin: 5px 0;
+  color: #ddd4eb;
+}
+
+.crystal-loader {
+  width: 48px;
+  height: 48px;
+
+  margin:
+    23px
+    auto
+    17px;
+
+  border-radius: 10px;
+
+  background:
+    linear-gradient(
+      135deg,
+      #ffffff 0%,
+      #d9a8ff 20%,
+      #a64cff 53%,
+      #48208c 100%
+    );
+
+  box-shadow:
+    0 0 12px rgba(183, 91, 255, 0.9),
+    0 0 34px rgba(158, 62, 255, 0.7);
+
+  transform: rotate(45deg);
+
+  animation:
+    crystalPulse
+    1.25s
+    ease-in-out
+    infinite;
+}
+
+@keyframes crystalPulse {
+  0%,
+  100% {
+    transform:
+      rotate(45deg)
+      scale(1);
+
+    opacity: 1;
+  }
+
+  50% {
+    transform:
+      rotate(45deg)
+      scale(0.76);
+
+    opacity: 0.55;
+
+    box-shadow:
+      0 0 7px rgba(183, 91, 255, 0.7);
+  }
+}
+
+
+/* =========================================================
+   SHARED TEXT
+========================================================= */
+
+.eyebrow {
+  margin: 0;
+
+  color: #dcbcff;
+
+  font-size: 0.7rem;
+  font-weight: 850;
+
+  letter-spacing: 0.16em;
+}
+
+.muted-text {
+  color: var(--muted);
+
+  line-height: 1.55;
+}
+
+.footer-joke {
+  margin-top: 18px;
+
+  color: #dbc5f6;
+
+  font-size: 0.86rem;
+  font-style: italic;
+}
+
+
+/* =========================================================
+   MAIN APPLICATION LAYOUT
+========================================================= */
+
+.app-shell {
+  width: min(100%, 760px);
+
+  margin: 0 auto;
+
+  padding:
+    14px
+    14px
+    calc(100px + var(--safe-bottom));
+}
+
+main {
+  padding-top: 14px;
+}
+
+
+/* =========================================================
+   TOP BAR
+========================================================= */
+
+.top-bar {
+  position: sticky;
+  top: 10px;
+  z-index: 30;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 14px;
+
+  min-height: 74px;
+
+  padding:
+    14px
+    16px;
+
+  border-radius: 22px;
+}
+
+.top-bar h1 {
+  margin:
+    2px
+    0
+    0;
+
+  font-size: 1.25rem;
+}
+
+.status-badge {
+  flex: 0 0 auto;
+
+  max-width: 145px;
+
+  padding:
+    8px
+    11px;
+
+  overflow: hidden;
+
+  border-radius: 999px;
+
+  background: rgba(255, 255, 255, 0.08);
+
+  color: var(--muted);
+
+  font-size: 0.72rem;
+  font-weight: 750;
+
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status-badge.online {
+  background: rgba(74, 217, 153, 0.14);
+
+  color: #91f1c2;
+
+  border:
+    1px solid
+    rgba(115, 229, 177, 0.22);
+}
+
+
+/* =========================================================
+   VIEWS
+
+   This fixes every screen appearing at the same time.
+========================================================= */
+
+.view {
+  display: none;
+}
+
+.view.active {
+  display: block;
+
+  animation:
+    viewRise
+    0.24s
+    ease;
+}
+
+@keyframes viewRise {
+  from {
+    opacity: 0;
+
+    transform: translateY(7px);
+  }
+
+  to {
+    opacity: 1;
+
+    transform: translateY(0);
+  }
+}
+
+
+/* =========================================================
+   HOME HERO
+========================================================= */
+
+.hero-card {
+  min-height: 330px;
+
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+
+  margin-bottom: 14px;
+
+  padding: 24px;
+
+  border-radius: 28px;
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(10, 6, 31, 0.04) 0%,
+      rgba(11, 8, 30, 0.4) 38%,
+      rgba(9, 7, 25, 0.91) 100%
+    );
+
+  border:
+    1px solid
+    rgba(195, 139, 255, 0.28);
+
+  box-shadow:
+    0 22px 75px rgba(0, 0, 0, 0.4);
+}
+
+.hero-card h2 {
+  margin:
+    7px
+    0
+    5px;
+
+  font-size: 2.25rem;
+  line-height: 1;
+}
+
+
+/* =========================================================
+   CHEST CARDS
+========================================================= */
+
+.chest-grid {
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      2,
+      minmax(0, 1fr)
+    );
+
+  gap: 12px;
+
+  margin-bottom: 14px;
+}
+
+.chest-card {
+  min-height: 138px;
+
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+
+  padding: 18px;
+
+  border: 1px solid;
+
+  border-radius: 24px;
+
+  color: var(--text);
+
+  text-align: left;
+
+  transition:
+    transform 0.18s ease,
+    border-color 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.chest-card:active {
+  transform: scale(0.975);
+}
+
+.gold-card {
+  background:
+    linear-gradient(
+      145deg,
+      rgba(97, 60, 8, 0.88),
+      rgba(29, 18, 8, 0.94)
+    );
+
+  border-color:
+    rgba(
+      255,
+      200,
+      90,
+      0.54
+    );
+
+  box-shadow:
+    inset 0 1px rgba(255, 255, 255, 0.07),
+    0 12px 35px rgba(125, 76, 0, 0.18);
+}
+
+.platinum-card {
+  background:
+    linear-gradient(
+      145deg,
+      rgba(28, 57, 98, 0.9),
+      rgba(13, 15, 31, 0.95)
+    );
+
+  border-color:
+    rgba(
+      151,
+      201,
+      255,
+      0.5
+    );
+
+  box-shadow:
+    inset 0 1px rgba(255, 255, 255, 0.07),
+    0 12px 35px rgba(32, 98, 176, 0.17);
+}
+
+.chest-symbol {
+  display: block;
+
+  font-size: 2rem;
+}
+
+.gold-card .chest-symbol {
+  color: var(--gold);
+
+  text-shadow:
+    0 0 18px
+    rgba(
+      255,
+      200,
+      90,
+      0.72
+    );
+}
+
+.platinum-card .chest-symbol {
+  color: #bddcff;
+
+  text-shadow:
+    0 0 18px
+    rgba(
+      91,
+      160,
+      255,
+      0.72
+    );
+}
+
+.chest-card-text strong {
+  display: block;
+
+  margin-bottom: 4px;
+
+  font-size: 1.22rem;
+}
+
+.chest-card-text small {
+  color: var(--muted);
+
+  font-size: 0.78rem;
+}
+
+
+/* =========================================================
+   SHARED PANELS
+========================================================= */
+
+.content-panel {
+  margin-bottom: 14px;
+
+  padding: 18px;
+
+  border-radius: 24px;
+}
+
+.section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 12px;
+}
+
+.section-heading h3 {
+  margin:
+    4px
+    0
+    0;
+
+  line-height: 1.2;
+}
