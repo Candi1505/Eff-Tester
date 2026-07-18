@@ -1808,12 +1808,27 @@
       );
 
     elements.forEach(element => {
-      if (
-        element.dataset
-          .ccPredictorBound === "true"
-      ) {
-        return;
-      }
+  if (
+    element.dataset
+      .ccPredictorBound === "true"
+  ) {
+    return;
+  }
+
+  /*
+   * Never hijack controls belonging to the
+   * predictor-management upload screen.
+   */
+  if (
+    element.closest("#predictorView") ||
+    element.closest("#ccPredictorOverlay") ||
+    element.id === "uploadGoldPredictorButton" ||
+    element.id === "uploadPlatinumPredictorButton" ||
+    element.id === "goldPredictorFile" ||
+    element.id === "platinumPredictorFile"
+  ) {
+    return;
+  }
 
       const chestType =
         detectChestType(element);
