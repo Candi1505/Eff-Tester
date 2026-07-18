@@ -23,7 +23,11 @@
 (function initialiseChestPredictor(global) {
   "use strict";
 
-  const SUPPORTED_CHESTS = ["gold", "platinum"];
+  const SUPPORTED_CHESTS = [
+  "gold",
+  "platinum",
+  "draconic"
+];
   const SUPPORTED_PROFILES = ["pvp", "breeding"];
 
   function normalise(value) {
