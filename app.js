@@ -2247,3 +2247,495 @@
     return matchingPositions;
 
   }
+    /* =======================================================
+     PREDICTION ENGINE
+  ======================================================= */
+
+  function updatePrediction() {
+
+    const recordedDrops =
+      appState.activeSession?.drops || [];
+
+    const fullSequence =
+      getSequence();
+
+    const matches =
+      findSequenceMatches();
+
+    let confidence = 0;
+
+    let title =
+      "Not enough data";
+
+    let prediction =
+      "Record more drops to begin identifying your position in the sequence.";
+
+
+    if (
+      recordedDrops.length &&
+      !fullSequence.length
+    ) {
+
+      confidence =
+        Math.min(
+          90,
+          15 + recordedDrops.length * 8
+        );
+
+      title =
+        "Sequence Captured";
+
+      prediction =
+        `${recordedDrops.length} drops recorded. Exact prediction will activate once the full sequence table has been loaded.`;
+
+    }
+
+    else if (
+      recordedDrops.length &&
+      matches.length === 1
+    ) {
+
+      confidence =
+        Math.min(
+          99,
+          55 + recordedDrops.length * 9
+        );
+
+      const nextPosition =
+
+        (
+          matches[0] +
+          recordedDrops.length
+        ) %
+
+        fullSequence.length;
+
+
+      const nextReward =
+
+        resolveSequenceReward(
+          fullSequence[
+            nextPosition
+          ]
+        );
+
+
+      title =
+        "Pattern Located";
+
+
+      prediction =
+        `Likely next reward: ${nextReward.name}${nextReward.quantity ? ` — ${nextReward.quantity}` : ""}`;
+
+    }
+
+    else if (
+      recordedDrops.length &&
+      matches.length > 1
+    ) {
+
+      confidence =
+        Math.min(
+          94,
+          35 + recordedDrops.length * 8
+        );
+
+      title =
+        "Searching...";
+
+      prediction =
+        `${matches.length} possible positions remain.`;
+
+    }
+
+    else if (
+      recordedDrops.length
+    ) {
+
+      confidence =
+        10;
+
+      title =
+        "No Match Yet";
+
+      prediction =
+        "Continue recording rewards or undo the previous reward if it was incorrect.";
+
+    }
+
+
+    setText(
+
+      getElement(
+        "predictionTitle"
+      ),
+
+      title
+
+    );
+
+
+    setText(
+
+      getElement(
+        "predictionText"
+      ),
+
+      prediction
+
+    );
+
+
+    setText(
+
+      getElement(
+        "confidenceValue"
+      ),
+
+      `${confidence}%`
+
+    );
+
+
+    const confidenceRing =
+      getElement(
+        "confidenceRing"
+      );
+
+
+    if (
+      confidenceRing
+    ) {
+
+      confidenceRing.style.background =
+
+        `conic-gradient(
+
+          var(--purple)
+
+          ${confidence * 3.6}deg,
+
+          rgba(255,255,255,.08)
+
+          0deg
+
+        )`;
+
+    }
+
+  }
+
+
+  /* =======================================================
+     PRIORITIES
+  ======================================================= */
+
+  function renderPriorities() {
+
+    const priorityContainer =
+      getElement(
+        "priorityGroups"
+      );
+
+    if (!priorityContainer) {
+
+      return;
+
+    }
+
+
+    const savedPriorities =
+
+      appState.priorities[
+        currentChest
+      ] || {};
+
+
+    priorityContainer.innerHTML =
+
+      getRewards()
+
+        .map(
+
+          (reward) => {
+
+            const priority =
+
+              savedPriorities[
+                reward.id
+              ] ||
+
+              {
+
+                weight: 50,
+
+                avoid: false
+
+              };
+
+
+            return `
+
+              <div
+                class="priority-row"
+                data-priority-id="${reward.id}"
+              >
+
+                <div>
+
+                  <strong
+                    class="${reward.rarity}-text"
+                  >
+
+                    ${reward.name}
+
+                  </strong>
+
+                  <small>
+
+                    ${reward.quantity}
+
+                  </small>
+
+                </div>
+
+                <input
+
+                  class="priority-range"
+
+                  type="range"
+
+                  min="0"
+
+                  max="100"
+
+                  value="${priority.weight}"
+
+                >
+
+                <output
+                  class="priority-value"
+                >
+
+                  ${priority.weight}
+
+                </output>
+
+                <label>
+
+                  <input
+
+                    class="priority-avoid"
+
+                    type="checkbox"
+
+                    ${priority.avoid ? "checked" : ""}
+
+                  >
+
+                  Avoid
+
+                </label>
+
+              </div>
+
+            `;
+
+          }
+
+        )
+
+        .join("");
+
+  }
+
+
+  function savePriorities() {
+
+    const newPriorities =
+      {};
+
+    getAllElements(
+
+      "#priorityGroups .priority-row"
+
+    ).forEach(
+
+      (row) => {
+
+        newPriorities[
+          row.dataset.priorityId
+        ] = {
+
+          weight:
+
+            Number(
+
+              row.querySelector(
+                ".priority-range"
+              ).value
+
+            ),
+
+          avoid:
+
+            row.querySelector(
+              ".priority-avoid"
+            ).checked
+
+        };
+
+      }
+
+    );
+
+
+    appState.priorities[
+      currentChest
+    ] =
+
+      newPriorities;
+
+
+    saveLocalState();
+
+
+    renderStrategy();
+
+  }
+
+
+  /* =======================================================
+     STRATEGY PANEL
+  ======================================================= */
+
+  function renderStrategy() {
+
+    const strategy =
+      getElement(
+        "strategyBreakdown"
+      );
+
+    if (!strategy) {
+
+      return;
+
+    }
+
+
+    const priorities =
+
+      appState.priorities[
+        currentChest
+      ] || {};
+
+
+    const orderedRewards =
+
+      getRewards()
+
+        .map(
+
+          (reward) => {
+
+            const settings =
+
+              priorities[
+                reward.id
+              ] ||
+
+              {
+
+                weight: 50,
+
+                avoid: false
+
+              };
+
+
+            let score =
+              settings.weight;
+
+
+            if (
+              reward.rarity ===
+              "legendary"
+            ) {
+
+              score +=
+                20;
+
+            }
+
+
+            if (
+              reward.rarity ===
+              "mythic"
+            ) {
+
+              score +=
+                30;
+
+            }
+
+
+            if (
+              settings.avoid
+            ) {
+
+              score -=
+                100;
+
+            }
+
+
+            return {
+
+              reward,
+
+              score,
+
+              avoid:
+                settings.avoid
+
+            };
+
+          }
+
+        )
+
+        .sort(
+
+          (a, b) =>
+
+            b.score -
+            a.score
+
+        );
+
+
+    strategy.innerHTML = `
+
+      <p>
+
+        Highest Priority:
+
+        <strong>
+
+          ${orderedRewards[0]?.reward.name || "None"}
+
+        </strong>
+
+      </p>
+
+      <p>
+
+        Priority Score:
+
+        ${orderedRewards[0]?.score || 0}
+
+      </p>
+
+    `;
+
+  }
