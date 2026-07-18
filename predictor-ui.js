@@ -2045,17 +2045,30 @@
     );
   }
 
+  async function startPredictorUI() {
   if (
-    document.readyState ===
-    "loading"
+    window.ChestPredictorCloud &&
+    typeof window.ChestPredictorCloud
+      .load === "function"
   ) {
-    document.addEventListener(
-      "DOMContentLoaded",
-      initialise
-    );
-  } else {
-    initialise();
+    await window.ChestPredictorCloud
+      .load();
   }
+
+  initialise();
+}
+
+if (
+  document.readyState ===
+  "loading"
+) {
+  document.addEventListener(
+    "DOMContentLoaded",
+    startPredictorUI
+  );
+} else {
+  startPredictorUI();
+}
 
   window.ChestPredictorUI =
     Object.freeze({
