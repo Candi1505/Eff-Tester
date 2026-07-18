@@ -3032,6 +3032,22 @@
       "click",
       toggleFullTable
     );
+    
+    getElement(
+      "trackerBackButton"
+    )?.addEventListener(
+      "click",
+      () => {
+
+        renderHomeScreen();
+
+        showView(
+          "homeView",
+          "Home"
+        );
+
+      }
+    );
 
 
     getElement(
