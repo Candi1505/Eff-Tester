@@ -394,57 +394,11 @@
     });
   }
 
-    function findGroupTitle(
+      function findGroupTitle(
     rows,
     columnIndex,
     headerRowIndex
   ) {
-      function findSequenceLength(
-    rows,
-    profileColumnIndex,
-    headerRowIndex
-  ) {
-
-    for (
-      let rowIndex =
-        headerRowIndex - 1;
-
-      rowIndex >= 0;
-
-      rowIndex -= 1
-    ) {
-
-      const value =
-        rows[rowIndex]?.[
-          profileColumnIndex
-        ];
-
-
-      const numericValue =
-        Number(
-          cleanCell(value)
-        );
-
-
-      if (
-        Number.isFinite(
-          numericValue
-        ) &&
-        numericValue > 0
-      ) {
-
-        return Math.floor(
-          numericValue
-        );
-
-      }
-
-    }
-
-
-    return null;
-
-  }
 
     const recognisedTitles = [
       "common drop",
@@ -491,9 +445,7 @@
         ) {
 
           if (possibleColumn < 0) {
-
             continue;
-
           }
 
 
@@ -512,9 +464,7 @@
           if (
             recognisedTitles.some(
               title =>
-                text.includes(
-                  title
-                )
+                text.includes(title)
             )
           ) {
 
@@ -530,6 +480,54 @@
 
 
     return "";
+
+  }
+
+
+  function findSequenceLength(
+    rows,
+    profileColumnIndex,
+    headerRowIndex
+  ) {
+
+    for (
+      let rowIndex =
+        headerRowIndex - 1;
+
+      rowIndex >= 0;
+
+      rowIndex -= 1
+    ) {
+
+      const value =
+        rows[rowIndex]?.[
+          profileColumnIndex
+        ];
+
+
+      const numericValue =
+        Number(
+          cleanCell(value)
+        );
+
+
+      if (
+        Number.isFinite(
+          numericValue
+        ) &&
+        numericValue > 0
+      ) {
+
+        return Math.floor(
+          numericValue
+        );
+
+      }
+
+    }
+
+
+    return null;
 
   }
 
@@ -960,7 +958,7 @@
         chestType
       );
 
-    if (
+        if (
       !mainGroup ||
       !mainGroup.sequence.length
     ) {
@@ -969,8 +967,20 @@
       );
     }
 
+
+    const mainSequence =
+            mainSequence,
+      );
+
+
+    if (!mainSequence.length) {
+      throw new Error(
+        `The ${chestType} chest sequence did not contain valid rarity entries.`
+      );
+    }
+
+
     const bonusGroup =
-      groups.find(isBonusGroup);
 
     const profile = {
       source: "uploaded-workbook",
