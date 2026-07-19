@@ -952,44 +952,71 @@
       );
 
 
-    const mainGroup =
+        const mainGroup =
       inferChestSequenceGroup(
         groups,
         chestType
       );
 
-        if (
+
+    if (
       !mainGroup ||
       !mainGroup.sequence.length
     ) {
+
       throw new Error(
         `The ${chestType} chest rarity sequence could not be found.`
       );
+
     }
 
 
     const mainSequence =
-            mainSequence,
+      cleanRaritySequence(
+        mainGroup.sequence
       );
 
 
     if (!mainSequence.length) {
+
       throw new Error(
         `The ${chestType} chest sequence did not contain valid rarity entries.`
       );
+
     }
 
 
     const bonusGroup =
+      groups.find(
+        group =>
+          isBonusGroup(group) &&
+          group !== mainGroup
+      );
+
+
+    const bonusSequence =
+      bonusGroup
+        ? cleanRaritySequence(
+            bonusGroup.sequence
+          )
+        : [];
+
 
     const profile = {
-      source: "uploaded-workbook",
+
+      source:
+        "uploaded-workbook",
+
       chestType,
+
       eventId,
+
       eventName:
         workbookRecord.eventName ||
         eventId,
+
       profileName,
+
       label:
         `${
           workbookRecord.eventName ||
@@ -999,30 +1026,31 @@
             ? "Gold"
             : "Platinum"
         }`,
+
       version:
         workbookRecord.fileName ||
         "",
+
       importedAt:
         workbookRecord.importedAt ||
         "",
-            mainSequence:
-        cleanRaritySequence(
-          mainGroup.sequence
-        ),
-            bonusSequence:
-        bonusGroup
-          ? cleanRaritySequence(
-              bonusGroup.sequence
-            )
-          : [],
+
+      mainSequence,
+
+      bonusSequence,
+
       rewardSequences,
+
       rewardRarityMap:
         buildRewardRarityMap(
           rewardSequences
         ),
+
       groups,
+
       workbook:
         workbookRecord
+
     };
 
     parsedProfiles.set(
