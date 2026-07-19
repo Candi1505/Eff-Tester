@@ -1912,8 +1912,19 @@
       )} Tracker`
 
     );
+    
+        setText(
+
+      getElement(
+        "trackerEventLabel"
+      ),
+
+      getSelectedEventName()
+
+    );
 
   }
+    
 
 
   function renderTrackerScreen() {
