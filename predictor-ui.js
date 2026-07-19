@@ -26,6 +26,27 @@
 
 
   const EVENT_NAMES = {
+      const VALID_RARITIES =
+    new Set([
+      "common",
+      "rare",
+      "epic",
+      "legendary",
+      "mythic"
+    ]);
+
+
+  function isValidRarity(
+    rarity
+  ) {
+
+    return VALID_RARITIES.has(
+      Engine.normalise(
+        rarity
+      )
+    );
+
+  }
 
     breeding:
       "Breeding",
