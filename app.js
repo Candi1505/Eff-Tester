@@ -45,10 +45,18 @@
 
     priorities: {
 
+          priorities: {
+
       gold:
         {},
 
       platinum:
+        {},
+
+      draconic:
+        {},
+
+      freedom:
         {}
 
     }
@@ -227,6 +235,188 @@
 
           id:
             "platinum-lumber",
+
+          name:
+            "Lumber",
+
+          quantity:
+            "",
+
+          rarity:
+            "epic"
+
+        }
+
+      ],
+
+      sequence:
+        []
+
+    },
+        draconic: {
+
+      rewards: [
+
+        {
+
+          id:
+            "draconic-crystals",
+
+          name:
+            "Crystals",
+
+          quantity:
+            "",
+
+          rarity:
+            "legendary"
+
+        },
+
+        {
+
+          id:
+            "draconic-breeding-tokens",
+
+          name:
+            "Breeding Tokens",
+
+          quantity:
+            "",
+
+          rarity:
+            "mythic"
+
+        },
+
+        {
+
+          id:
+            "draconic-elemental-shards",
+
+          name:
+            "Elemental Shards",
+
+          quantity:
+            "",
+
+          rarity:
+            "legendary"
+
+        },
+
+        {
+
+          id:
+            "draconic-food",
+
+          name:
+            "Food",
+
+          quantity:
+            "",
+
+          rarity:
+            "epic"
+
+        },
+
+        {
+
+          id:
+            "draconic-lumber",
+
+          name:
+            "Lumber",
+
+          quantity:
+            "",
+
+          rarity:
+            "epic"
+
+        }
+
+      ],
+
+      sequence:
+        []
+
+    },
+
+
+    freedom: {
+
+      rewards: [
+
+        {
+
+          id:
+            "freedom-crystals",
+
+          name:
+            "Crystals",
+
+          quantity:
+            "",
+
+          rarity:
+            "legendary"
+
+        },
+
+        {
+
+          id:
+            "freedom-breeding-tokens",
+
+          name:
+            "Breeding Tokens",
+
+          quantity:
+            "",
+
+          rarity:
+            "mythic"
+
+        },
+
+        {
+
+          id:
+            "freedom-elemental-shards",
+
+          name:
+            "Elemental Shards",
+
+          quantity:
+            "",
+
+          rarity:
+            "legendary"
+
+        },
+
+        {
+
+          id:
+            "freedom-food",
+
+          name:
+            "Food",
+
+          quantity:
+            "",
+
+          rarity:
+            "epic"
+
+        },
+
+        {
+
+          id:
+            "freedom-lumber",
 
           name:
             "Lumber",
@@ -525,6 +715,8 @@
 
         priorities: {
 
+                  priorities: {
+
           gold:
             savedState
               .priorities
@@ -535,6 +727,18 @@
             savedState
               .priorities
               ?.platinum ||
+            {},
+
+          draconic:
+            savedState
+              .priorities
+              ?.draconic ||
+            {},
+
+          freedom:
+            savedState
+              .priorities
+              ?.freedom ||
             {}
 
         },
