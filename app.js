@@ -1971,7 +1971,7 @@
     
 
 
-    function renderTrackerScreen() {
+      function renderTrackerScreen() {
 
     const activeSession =
       appState.activeSession;
@@ -2004,6 +2004,14 @@
       getElement(
         "dropSearchInput"
       );
+
+
+    if (
+      searchInput
+    ) {
+
+      searchInput.value =
+        "";
 
     }
 
