@@ -781,3 +781,51 @@ nav {
   background: rgba(110, 65, 165, 0.25);
   color: #ffffff;
 }
+/* ============================================================
+   PREDICTOR FILE DETAILS
+============================================================ */
+
+.predictor-file-details {
+  display: grid;
+  gap: 10px;
+  margin-top: 18px;
+  padding: 16px;
+  border: 1px solid rgba(168, 108, 255, 0.35);
+  border-radius: 18px;
+  background: rgba(9, 7, 22, 0.45);
+}
+
+.predictor-detail-row {
+  display: grid;
+  grid-template-columns: minmax(95px, 0.7fr) minmax(0, 1.3fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.predictor-detail-row strong {
+  color: #ffffff;
+}
+
+.predictor-detail-row span {
+  min-width: 0;
+  color: #c9b6dc;
+  overflow-wrap: anywhere;
+}
+
+#predictorEventSelect {
+  width: 100%;
+  margin-top: 10px;
+  padding: 15px;
+  color: #ffffff;
+  border: 1px solid rgba(168, 108, 255, 0.45);
+  border-radius: 16px;
+  background: rgba(9, 7, 22, 0.75);
+  font: inherit;
+}
+
+#goldPredictorFile,
+#platinumPredictorFile {
+  width: 100%;
+  margin: 14px 0;
+  color: #c9b6dc;
+}
