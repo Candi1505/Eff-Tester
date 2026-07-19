@@ -25,28 +25,7 @@
     "chestCompanionBetaPredictor";
 
 
-  const EVENT_NAMES = {
-      const VALID_RARITIES =
-    new Set([
-      "common",
-      "rare",
-      "epic",
-      "legendary",
-      "mythic"
-    ]);
-
-
-  function isValidRarity(
-    rarity
-  ) {
-
-    return VALID_RARITIES.has(
-      Engine.normalise(
-        rarity
-      )
-    );
-
-  }
+    const EVENT_NAMES = {
 
     breeding:
       "Breeding",
@@ -67,6 +46,29 @@
       "Fight Pits"
 
   };
+
+
+  const VALID_RARITIES =
+    new Set([
+      "common",
+      "rare",
+      "epic",
+      "legendary",
+      "mythic"
+    ]);
+
+
+  function isValidRarity(
+    rarity
+  ) {
+
+    return VALID_RARITIES.has(
+      Engine.normalise(
+        rarity
+      )
+    );
+
+  }
 
 
   const defaultState = {
@@ -890,54 +892,6 @@
           ></div>
         </section>
 
-        <section class="cc-card">
-          <h2>Record chest drop</h2>
-
-          <p class="cc-muted">
-            Choose the rarity, then tap the exact
-            reward shown in the game.
-          </p>
-
-          <span class="cc-field-label">
-            Rarity
-          </span>
-
-          <div
-            id="ccRarityButtons"
-            class="cc-rarity-grid"
-          ></div>
-
-          <span class="cc-field-label">
-            Exact reward
-          </span>
-
-          <input
-            id="ccRewardSearch"
-            class="cc-search"
-            type="search"
-            placeholder="Search rewards"
-            autocomplete="off"
-          />
-
-          <div
-            id="ccRewardButtons"
-            class="cc-reward-grid"
-          ></div>
-
-          <label
-            id="ccBonusRow"
-            class="cc-bonus-row"
-          >
-            <input
-              id="ccBonusCheck"
-              type="checkbox"
-            />
-
-            <span>
-              This was a Platinum bonus chest
-            </span>
-          </label>
-        </section>
 
                 <section class="cc-card">
           <h2>Record chest drop</h2>
