@@ -1,6 +1,6 @@
 /* ============================================================
    CHEST COMPANION V2 — UPLOADED WORKBOOK PREDICTOR ENGINE
-   Built by Cherubim
+   
    ============================================================ */
 
 (function initialiseChestPredictor(global) {
@@ -10,6 +10,40 @@
     "gold",
     "platinum"
   ]);
+  
+    const VALID_RARITIES =
+    new Set([
+      "common",
+      "rare",
+      "epic",
+      "legendary",
+      "mythic"
+    ]);
+
+
+  const INVALID_SEQUENCE_LABELS =
+    new Set([
+      "assault",
+      "pvp",
+      "breeding",
+      "fortification",
+      "crystal caves",
+      "temple raids",
+      "team gauntlet",
+      "fight pits",
+      "gold",
+      "gold chest",
+      "platinum",
+      "platinum chest",
+      "name",
+      "rarity",
+      "reward",
+      "rewards",
+      "valid for",
+      "notes",
+      "sequence",
+      "sequence cycle"
+    ]);
 
   const EVENT_PROFILE_MAP = Object.freeze({
     breeding: "breeding",
@@ -74,6 +108,102 @@
     ) {
       return "";
     }
+    
+      function isValidRarity(
+    value
+  ) {
+
+    return VALID_RARITIES.has(
+      normalise(value)
+    );
+
+  }
+
+
+  function isNumericOnly(
+    value
+  ) {
+
+    return /^\d+(?:\.\d+)?$/.test(
+      String(value || "").trim()
+    );
+
+  }
+
+
+  function isInvalidSequenceLabel(
+    value
+  ) {
+
+    const cleaned =
+      normalise(value);
+
+
+    return (
+      !cleaned ||
+      INVALID_SEQUENCE_LABELS.has(
+        cleaned
+      ) ||
+      cleaned.startsWith(
+        "sequence cycle"
+      ) ||
+      cleaned.startsWith(
+        "valid for"
+      )
+    );
+
+  }
+
+
+  function cleanRaritySequence(
+    sequence
+  ) {
+
+    return sequence
+      .map(cleanCell)
+      .filter(isValidRarity)
+      .map(value =>
+        value.charAt(0).toUpperCase() +
+        value.slice(1).toLowerCase()
+      );
+
+  }
+
+
+  function cleanRewardSequence(
+    sequence
+  ) {
+
+    return sequence
+      .map(cleanCell)
+      .filter(value => {
+
+        if (
+          !value ||
+          value.startsWith("=")
+        ) {
+
+          return false;
+
+        }
+
+
+        if (
+          isNumericOnly(value) ||
+          isValidRarity(value) ||
+          isInvalidSequenceLabel(value)
+        ) {
+
+          return false;
+
+        }
+
+
+        return true;
+
+      });
+
+  }
 
     if (typeof value === "object") {
       return (
@@ -226,70 +356,99 @@
     });
   }
 
-  function findGroupTitle(
+    function findGroupTitle(
     rows,
     columnIndex,
     headerRowIndex
   ) {
+
+    const recognisedTitles = [
+      "common drop",
+      "rare drop",
+      "epic drop",
+      "legendary drop",
+      "mythic drop",
+      "gold chest",
+      "platinum chest",
+      "bonus chest",
+      "bonus"
+    ];
+
+
     for (
-      let rowIndex = headerRowIndex - 1;
-      rowIndex >= 0;
+      let rowIndex =
+        headerRowIndex - 1;
+
+      rowIndex >=
+        Math.max(
+          0,
+          headerRowIndex - 12
+        );
+
       rowIndex -= 1
     ) {
-      const value = cleanCell(
-        rows[rowIndex]?.[columnIndex]
-      );
 
-      if (!value) {
-        continue;
-      }
-
-      const text = normalise(value);
-
-      if (
-        text === "name" ||
-        text === "rarity" ||
-        text.includes("sequence cycle") ||
-        text === "notes" ||
-        text === "valid for"
+      for (
+        let offset = 0;
+        offset <= 3;
+        offset += 1
       ) {
-        continue;
-      }
 
-      return value;
-    }
-
-    return "";
-  }
-
-  function findSequenceLength(
-    rows,
-    profileColumnIndex,
-    headerRowIndex
-  ) {
-    for (
-      let rowIndex = headerRowIndex - 1;
-      rowIndex >= 0;
-      rowIndex -= 1
-    ) {
-      const value =
-        rows[rowIndex]?.[
-          profileColumnIndex
+        const possibleColumns = [
+          columnIndex,
+          columnIndex - offset,
+          columnIndex + offset
         ];
 
-      const numericValue =
-        Number(value);
 
-      if (
-        Number.isFinite(numericValue) &&
-        numericValue > 0
-      ) {
-        return Math.floor(numericValue);
+        for (
+          const possibleColumn of
+          possibleColumns
+        ) {
+
+          if (possibleColumn < 0) {
+
+            continue;
+
+          }
+
+
+          const value =
+            cleanCell(
+              rows[rowIndex]?.[
+                possibleColumn
+              ]
+            );
+
+
+          const text =
+            normalise(value);
+
+
+          if (
+            recognisedTitles.some(
+              title =>
+                text.includes(
+                  title
+                )
+            )
+          ) {
+
+            return value;
+
+          }
+
+        }
+
       }
+
     }
 
-    return null;
+
+    return "";
+
   }
+
 
   function readColumnSequence(
     rows,
@@ -362,14 +521,12 @@
         continue;
       }
 
-      const groupStartColumn =
-        Math.max(0, columnIndex - 1);
-
-      const title = findGroupTitle(
-        rows,
-        groupStartColumn,
-        headerRowIndex
-      );
+            const title =
+        findGroupTitle(
+          rows,
+          columnIndex,
+          headerRowIndex
+        );
 
       const expectedLength =
         findSequenceLength(
@@ -378,7 +535,7 @@
           headerRowIndex
         );
 
-      const sequence =
+            const rawSequence =
         readColumnSequence(
           rows,
           columnIndex,
@@ -386,14 +543,37 @@
           expectedLength
         );
 
+
+      const normalisedTitle =
+        normalise(title);
+
+
+      const sequence =
+        (
+          normalisedTitle.includes(
+            "chest"
+          ) ||
+          normalisedTitle.includes(
+            "bonus"
+          )
+        )
+
+          ? cleanRaritySequence(
+              rawSequence
+            )
+
+          : cleanRewardSequence(
+              rawSequence
+            );
+
       if (!sequence.length) {
         continue;
       }
 
       groups.push({
         title,
-        normalisedTitle:
-          normalise(title),
+        normalisedTitle,
+        
         columnIndex,
         expectedLength,
         sequence
@@ -403,17 +583,32 @@
     return groups;
   }
 
-  function isRewardGroup(group) {
+    function isRewardGroup(
+    group
+  ) {
+
     const title =
       group.normalisedTitle;
 
+
     return (
-      title.includes("common") ||
-      title.includes("rare drop") ||
-      title.includes("epic drop") ||
-      title.includes("legendary drop") ||
-      title.includes("mythic drop")
+      title.includes(
+        "common drop"
+      ) ||
+      title.includes(
+        "rare drop"
+      ) ||
+      title.includes(
+        "epic drop"
+      ) ||
+      title.includes(
+        "legendary drop"
+      ) ||
+      title.includes(
+        "mythic drop"
+      )
     );
+
   }
 
   function getRarityFromGroup(group) {
@@ -644,9 +839,10 @@
           return;
         }
 
-        rewardSequences[rarity] =
-          group.sequence;
-      });
+                rewardSequences[rarity] =
+          cleanRewardSequence(
+            group.sequence
+          );
 
     const mainGroup =
       inferChestSequenceGroup(
@@ -689,11 +885,15 @@
       importedAt:
         workbookRecord.importedAt ||
         "",
-      mainSequence:
-        mainGroup.sequence,
-      bonusSequence:
+            mainSequence:
+        cleanRaritySequence(
+          mainGroup.sequence
+        ),
+            bonusSequence:
         bonusGroup
-          ? bonusGroup.sequence
+          ? cleanRaritySequence(
+              bonusGroup.sequence
+            )
           : [],
       rewardSequences,
       rewardRarityMap:
@@ -885,20 +1085,25 @@
       : [];
   }
 
-  function getRarities(
+    function getRarities(
     chestType,
     eventOrProfile =
       activeEventId
   ) {
+
     const profile =
       getProfile(
         chestType,
         eventOrProfile
       );
 
+
     if (!profile) {
+
       return [];
+
     }
+
 
     return unique([
       ...profile.mainSequence,
@@ -906,7 +1111,10 @@
       ...Object.keys(
         profile.rewardSequences
       )
-    ]);
+    ]).filter(
+      isValidRarity
+    );
+
   }
 
   function getRewardCatalogue(
@@ -1713,7 +1921,7 @@
                 rewardSequence.length
               )
             ]
-          : "Reward unavailable";
+          : "";
 
       rewardCounters[
         rarityKey
