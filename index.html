@@ -588,13 +588,13 @@
 
         </section>
 
-      </section>
-
-<!-- ======================================
+      <!-- ======================================
      PREDICTOR VIEW
 ====================================== -->
 
 <section id="predictorView" class="view">
+
+  <!-- INTRODUCTION -->
 
   <section class="glass-panel content-panel">
 
@@ -607,26 +607,110 @@
     </h2>
 
     <p class="muted-text">
-      Upload the latest Gold or Platinum sequence spreadsheet.
-      The predictor will validate the file before activating it.
+      Choose the current War Dragons event, then upload the matching
+      Gold or Platinum sequence spreadsheet. Chest Companion will read,
+      validate and prepare the file automatically.
     </p>
 
   </section>
 
 
-  <!-- GOLD -->
+  <!-- CURRENT EVENT -->
 
   <section class="glass-panel content-panel">
 
-    <h3>Gold Predictor</h3>
-    
-    <input
-  id="goldPredictorFile"
-  type="file"
-  accept=".csv,.xlsx,.xlsm"
->
+    <div class="section-heading">
 
-    
+      <div>
+
+        <p class="eyebrow">
+          CURRENT EVENT
+        </p>
+
+        <h3>
+          Choose the active event
+        </h3>
+
+      </div>
+
+    </div>
+
+    <label for="predictorEventSelect">
+      Event
+    </label>
+
+    <select id="predictorEventSelect">
+
+      <option value="">
+        Select an event
+      </option>
+
+      <option value="breeding">
+        Breeding
+      </option>
+
+      <option value="fortification">
+        Fortification
+      </option>
+
+      <option value="crystal-caves">
+        Crystal Caves
+      </option>
+
+      <option value="temple-raids">
+        Temple Raids
+      </option>
+
+      <option value="team-gauntlet">
+        Team Gauntlet
+      </option>
+
+      <option value="fight-pits">
+        Fight Pits
+      </option>
+
+    </select>
+
+    <p id="predictorEventStatus" class="muted-text">
+      Select the event that is currently active in War Dragons.
+    </p>
+
+  </section>
+
+
+  <!-- GOLD PREDICTOR -->
+
+  <section class="glass-panel content-panel">
+
+    <div class="section-heading">
+
+      <div>
+
+        <p class="eyebrow">
+          GOLD CHESTS
+        </p>
+
+        <h3>
+          Gold Predictor
+        </h3>
+
+      </div>
+
+      <div id="goldPredictorBadge" class="status-badge">
+        Not loaded
+      </div>
+
+    </div>
+
+    <p class="muted-text">
+      Upload the Gold predictor spreadsheet for the selected event.
+    </p>
+
+    <input
+      id="goldPredictorFile"
+      type="file"
+      accept=".csv,.xlsx,.xlsm"
+    >
 
     <button
       id="uploadGoldPredictorButton"
@@ -640,23 +724,58 @@
       id="goldPredictorStatus"
       class="muted-text"
     >
-      No upload yet.
+      No Gold sequence file uploaded for this event.
     </p>
+
+    <div
+      id="goldPredictorDetails"
+      class="predictor-file-details hidden"
+    ></div>
+
+    <button
+      id="clearGoldPredictorButton"
+      class="button danger-button full-width-button hidden"
+      type="button"
+    >
+      Remove Gold Sequence
+    </button>
 
   </section>
 
 
-  <!-- PLATINUM -->
+  <!-- PLATINUM PREDICTOR -->
 
   <section class="glass-panel content-panel">
 
-    <h3>Platinum Predictor</h3>
+    <div class="section-heading">
+
+      <div>
+
+        <p class="eyebrow">
+          PLATINUM CHESTS
+        </p>
+
+        <h3>
+          Platinum Predictor
+        </h3>
+
+      </div>
+
+      <div id="platinumPredictorBadge" class="status-badge">
+        Not loaded
+      </div>
+
+    </div>
+
+    <p class="muted-text">
+      Upload the Platinum predictor spreadsheet for the selected event.
+    </p>
 
     <input
-  id="platinumPredictorFile"
-  type="file"
-  accept=".csv,.xlsx,.xlsm"
->
+      id="platinumPredictorFile"
+      type="file"
+      accept=".csv,.xlsx,.xlsm"
+    >
 
     <button
       id="uploadPlatinumPredictorButton"
@@ -670,7 +789,39 @@
       id="platinumPredictorStatus"
       class="muted-text"
     >
-      No upload yet.
+      No Platinum sequence file uploaded for this event.
+    </p>
+
+    <div
+      id="platinumPredictorDetails"
+      class="predictor-file-details hidden"
+    ></div>
+
+    <button
+      id="clearPlatinumPredictorButton"
+      class="button danger-button full-width-button hidden"
+      type="button"
+    >
+      Remove Platinum Sequence
+    </button>
+
+  </section>
+
+
+  <!-- ACTIVE PREDICTOR SUMMARY -->
+
+  <section class="glass-panel content-panel">
+
+    <p class="eyebrow">
+      ACTIVE PREDICTOR
+    </p>
+
+    <h3 id="activePredictorHeading">
+      No predictor ready
+    </h3>
+
+    <p id="activePredictorSummary" class="muted-text">
+      Choose an event and upload a Gold or Platinum sequence file.
     </p>
 
   </section>
