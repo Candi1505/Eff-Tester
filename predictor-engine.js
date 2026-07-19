@@ -50,8 +50,10 @@
     "category",
     "valid for",
     "notes",
-    "sequence",
-    "sequence cycle"
+        "sequence",
+    "sequence cycle",
+    "temple raid",
+    "whatever"
   ]);
 
   const EVENT_PROFILE_MAP = Object.freeze({
