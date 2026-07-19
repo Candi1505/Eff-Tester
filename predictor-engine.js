@@ -101,15 +101,39 @@
     return ((value % length) + length) % length;
   }
 
-  function cleanCell(value) {
+    function cleanCell(value) {
+
     if (
       value === null ||
       value === undefined
     ) {
+
       return "";
+
     }
-    
-      function isValidRarity(
+
+
+    if (
+      typeof value === "object"
+    ) {
+
+      return String(
+        value.result ||
+        value.value ||
+        value.text ||
+        value.v ||
+        ""
+      ).trim();
+
+    }
+
+
+    return String(value).trim();
+
+  }
+
+
+  function isValidRarity(
     value
   ) {
 
@@ -125,7 +149,10 @@
   ) {
 
     return /^\d+(?:\.\d+)?$/.test(
-      String(value || "").trim()
+      String(
+        value ||
+        ""
+      ).trim()
     );
 
   }
@@ -141,12 +168,15 @@
 
     return (
       !cleaned ||
+
       INVALID_SEQUENCE_LABELS.has(
         cleaned
       ) ||
+
       cleaned.startsWith(
         "sequence cycle"
       ) ||
+
       cleaned.startsWith(
         "valid for"
       )
@@ -160,11 +190,26 @@
   ) {
 
     return sequence
-      .map(cleanCell)
-      .filter(isValidRarity)
-      .map(value =>
-        value.charAt(0).toUpperCase() +
-        value.slice(1).toLowerCase()
+      .map(
+        cleanCell
+      )
+      .filter(
+        isValidRarity
+      )
+      .map(
+        value => {
+
+          const cleaned =
+            normalise(value);
+
+
+          return (
+            cleaned.charAt(0)
+              .toUpperCase() +
+            cleaned.slice(1)
+          );
+
+        }
       );
 
   }
@@ -175,47 +220,40 @@
   ) {
 
     return sequence
-      .map(cleanCell)
-      .filter(value => {
+      .map(
+        cleanCell
+      )
+      .filter(
+        value => {
 
-        if (
-          !value ||
-          value.startsWith("=")
-        ) {
+          if (
+            !value ||
+            value.startsWith("=")
+          ) {
 
-          return false;
+            return false;
+
+          }
+
+
+          if (
+            isNumericOnly(value) ||
+            isValidRarity(value) ||
+            isInvalidSequenceLabel(
+              value
+            )
+          ) {
+
+            return false;
+
+          }
+
+
+          return true;
 
         }
-
-
-        if (
-          isNumericOnly(value) ||
-          isValidRarity(value) ||
-          isInvalidSequenceLabel(value)
-        ) {
-
-          return false;
-
-        }
-
-
-        return true;
-
-      });
-
-  }
-
-    if (typeof value === "object") {
-      return (
-        value.result ||
-        value.value ||
-        value.text ||
-        value.v ||
-        ""
       );
-    }
 
-    return String(value).trim();
   }
 
   function normaliseChestType(chestType) {
@@ -361,6 +399,52 @@
     columnIndex,
     headerRowIndex
   ) {
+      function findSequenceLength(
+    rows,
+    profileColumnIndex,
+    headerRowIndex
+  ) {
+
+    for (
+      let rowIndex =
+        headerRowIndex - 1;
+
+      rowIndex >= 0;
+
+      rowIndex -= 1
+    ) {
+
+      const value =
+        rows[rowIndex]?.[
+          profileColumnIndex
+        ];
+
+
+      const numericValue =
+        Number(
+          cleanCell(value)
+        );
+
+
+      if (
+        Number.isFinite(
+          numericValue
+        ) &&
+        numericValue > 0
+      ) {
+
+        return Math.floor(
+          numericValue
+        );
+
+      }
+
+    }
+
+
+    return null;
+
+  }
 
     const recognisedTitles = [
       "common drop",
@@ -829,20 +913,46 @@
 
     const rewardSequences = {};
 
-    groups
-      .filter(isRewardGroup)
-      .forEach(group => {
-        const rarity =
-          getRarityFromGroup(group);
+        groups
+      .filter(
+        isRewardGroup
+      )
+      .forEach(
+        group => {
 
-        if (!rarity) {
-          return;
+          const rarity =
+            getRarityFromGroup(
+              group
+            );
+
+
+          if (!rarity) {
+
+            return;
+
+          }
+
+
+          const cleanedRewards =
+            cleanRewardSequence(
+              group.sequence
+            );
+
+
+          if (
+            cleanedRewards.length
+          ) {
+
+            rewardSequences[
+              rarity
+            ] =
+              cleanedRewards;
+
+          }
+
         }
+      );
 
-                rewardSequences[rarity] =
-          cleanRewardSequence(
-            group.sequence
-          );
 
     const mainGroup =
       inferChestSequenceGroup(
