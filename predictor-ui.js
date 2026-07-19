@@ -1018,110 +1018,187 @@
     document.body.appendChild(overlay);
   }
 
-  function renderHeader() {
+    function renderHeader() {
+
+    const eventName =
+      getActiveEventName();
+
+
     document.getElementById(
       "ccPredictorTitle"
     ).textContent =
-      `${titleCase(state.chestType)} Chest Predictor`;
+
+      `${titleCase(
+        state.chestType
+      )} Chest Predictor`;
+
 
     document.getElementById(
       "ccPredictorSubtitle"
     ).textContent =
-      `${titleCase(state.profileName)} profile ` +
-      "• exact spreadsheet rewards";
+
+      `${eventName} • uploaded spreadsheet rewards`;
+
 
     document
-      .getElementById("ccBonusRow")
+      .getElementById(
+        "ccBonusRow"
+      )
       .classList.toggle(
+
         "cc-hidden",
-        state.chestType !== "platinum"
+
+        state.chestType !==
+          "platinum"
+
       );
+
   }
 
-  function renderSelectors() {
+    function renderSelectors() {
+
     const chestContainer =
       document.getElementById(
         "ccChestSelectors"
       );
 
+
     chestContainer.innerHTML = [
-      ["gold", "🥇 Gold"],
-      ["platinum", "💎 Platinum"]
+
+      [
+        "gold",
+        "🥇 Gold"
+      ],
+
+      [
+        "platinum",
+        "💎 Platinum"
+      ]
+
     ]
       .map(
-        ([value, label]) => `
+        (
+          [
+            value,
+            label
+          ]
+        ) => `
+
           <button
+
             type="button"
+
             class="cc-selector ${
-              state.chestType === value
+              state.chestType ===
+                value
+
                 ? "cc-active"
+
                 : ""
             }"
+
             data-cc-chest="${value}"
+
           >
+
             ${label}
+
           </button>
+
         `
       )
       .join("");
+
 
     const profileContainer =
       document.getElementById(
         "ccProfileSelectors"
       );
 
-    profileContainer.innerHTML = [
-      ["breeding", "🥚 Breeding"],
-      ["pvp", "⚔️ PvP / Assault"]
-    ]
-      .map(
-        ([value, label]) => `
-          <button
-            type="button"
-            class="cc-selector ${
-              state.profileName === value
-                ? "cc-active"
-                : ""
-            }"
-            data-cc-profile="${value}"
-          >
-            ${label}
-          </button>
-        `
-      )
-      .join("");
+
+    const eventId =
+      getActiveEventId();
+
+
+    const eventName =
+      getActiveEventName();
+
+
+    if (!eventId) {
+
+      profileContainer.innerHTML = `
+
+        <div class="cc-muted">
+
+          Select an event on the Predictors page first.
+
+        </div>
+
+      `;
+
+    } else {
+
+      profileContainer.innerHTML = `
+
+        <button
+
+          type="button"
+
+          class="cc-selector cc-active"
+
+          disabled
+
+        >
+
+          ✦ ${escapeHTML(
+            eventName
+          )}
+
+        </button>
+
+      `;
+
+    }
+
 
     chestContainer
-      .querySelectorAll("[data-cc-chest]")
-      .forEach(button => {
-        button.addEventListener(
-          "click",
-          () => {
-            state.chestType =
-              button.dataset.ccChest;
+      .querySelectorAll(
+        "[data-cc-chest]"
+      )
+      .forEach(
+        button => {
 
-            state.selectedRarity = "";
-            saveState();
-            renderEverything();
-          }
-        );
-      });
+          button.addEventListener(
 
-    profileContainer
-      .querySelectorAll("[data-cc-profile]")
-      .forEach(button => {
-        button.addEventListener(
-          "click",
-          () => {
-            state.profileName =
-              button.dataset.ccProfile;
+            "click",
 
-            state.selectedRarity = "";
-            saveState();
-            renderEverything();
-          }
-        );
-      });
+            async () => {
+
+              state.chestType =
+                button.dataset
+                  .ccChest;
+
+
+              state.selectedRarity =
+                "";
+
+
+              saveState();
+
+
+              await activateCurrentPredictor();
+
+
+              renderEverything();
+
+            }
+
+          );
+
+        }
+
+      );
+
   }
 
   function renderRarityButtons() {
