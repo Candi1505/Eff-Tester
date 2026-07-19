@@ -1763,25 +1763,98 @@
   }
 
 
-  function openChestTracker(
+    async function openChestTracker(
     chestType
   ) {
+
+    const eventId =
+      getSelectedEventId();
+
+
+    if (!eventId) {
+
+      window.alert(
+        "Please select the current event on the Predictor page first."
+      );
+
+
+      showView(
+        "predictorView",
+        "Predictor"
+      );
+
+
+      return;
+
+    }
+
 
     currentChest =
       chestType;
 
 
-    if (
+    try {
 
-      !appState
-        .activeSession ||
+      const profile =
+        await window
+          .ChestPredictorEngine
+          ?.activate?.(
+            chestType,
+            eventId
+          );
 
-      appState
-        .activeSession
-        .chest !==
-        chestType
 
-    ) {
+      if (!profile) {
+
+        window.alert(
+          `Please upload the ${capitalise(
+            chestType
+          )} predictor spreadsheet for ${getSelectedEventName()} first.`
+        );
+
+
+        showView(
+          "predictorView",
+          "Predictor"
+        );
+
+
+        return;
+
+      }
+
+    } catch (error) {
+
+      console.error(
+        "Predictor activation failed:",
+        error
+      );
+
+
+      window.alert(
+        error?.message ||
+        "The uploaded predictor could not be activated."
+      );
+
+
+      return;
+
+    }
+
+
+    const existingSession =
+      appState.activeSession;
+
+
+    const sessionMatches =
+      existingSession &&
+      existingSession.chest ===
+        chestType &&
+      existingSession.eventId ===
+        eventId;
+
+
+    if (!sessionMatches) {
 
       appState.activeSession =
         createSession(
