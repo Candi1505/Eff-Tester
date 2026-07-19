@@ -11,11 +11,15 @@
    - Event
    - Chest type
 
-   Examples:
+      Examples:
    - breeding:gold
    - breeding:platinum
+   - breeding:draconic
+   - breeding:freedom
    - fortification:gold
    - fortification:platinum
+   - fortification:draconic
+   - fortification:freedom
    ============================================================ */
 
 (function initialisePredictorUpload(window) {
@@ -105,11 +109,37 @@
     return `${eventId}:${chestType}`;
   }
 
-  function getElements(chestType) {
+    function getElements(chestType) {
+    const prefixes = {
+      gold: "gold",
+      platinum: "platinum",
+      draconic: "draconic",
+      freedom: "freedom"
+    };
+
+    const names = {
+      gold: "Gold",
+      platinum: "Platinum",
+      draconic: "Draconic",
+      freedom: "Freedom"
+    };
+
     const prefix =
-      chestType === "gold"
-        ? "gold"
-        : "platinum";
+      prefixes[chestType];
+
+    const name =
+      names[chestType];
+
+    if (!prefix || !name) {
+      return {
+        fileInput: null,
+        uploadButton: null,
+        clearButton: null,
+        status: null,
+        badge: null,
+        details: null
+      };
+    }
 
     return {
       fileInput:
@@ -119,16 +149,12 @@
 
       uploadButton:
         document.getElementById(
-          chestType === "gold"
-            ? "uploadGoldPredictorButton"
-            : "uploadPlatinumPredictorButton"
+          `upload${name}PredictorButton`
         ),
 
       clearButton:
         document.getElementById(
-          chestType === "gold"
-            ? "clearGoldPredictorButton"
-            : "clearPlatinumPredictorButton"
+          `clear${name}PredictorButton`
         ),
 
       status:
@@ -148,12 +174,18 @@
     };
   }
 
-  function capitaliseChestType(
+    function capitaliseChestType(
     chestType
   ) {
-    return chestType === "gold"
-      ? "Gold"
-      : "Platinum";
+    const chestNames = {
+      gold: "Gold",
+      platinum: "Platinum",
+      draconic: "Draconic",
+      freedom: "Freedom"
+    };
+
+    return chestNames[chestType] ||
+      chestType;
   }
 
   function escapeHTML(value) {
@@ -1208,10 +1240,21 @@
       }
     }
 
-    await Promise.all([
-      refreshChestStatus("gold"),
+        await Promise.all([
+      refreshChestStatus(
+        "gold"
+      ),
+
       refreshChestStatus(
         "platinum"
+      ),
+
+      refreshChestStatus(
+        "draconic"
+      ),
+
+      refreshChestStatus(
+        "freedom"
       )
     ]);
 
@@ -1330,7 +1373,7 @@
      SUMMARY
   ========================================================== */
 
-  async function updateActivePredictorSummary() {
+    async function updateActivePredictorSummary() {
     const heading =
       document.getElementById(
         "activePredictorHeading"
@@ -1360,7 +1403,9 @@
 
     const [
       goldRecord,
-      platinumRecord
+      platinumRecord,
+      draconicRecord,
+      freedomRecord
     ] = await Promise.all([
       getWorkbookRecord(
         eventId,
@@ -1370,6 +1415,16 @@
       getWorkbookRecord(
         eventId,
         "platinum"
+      ),
+
+      getWorkbookRecord(
+        eventId,
+        "draconic"
+      ),
+
+      getWorkbookRecord(
+        eventId,
+        "freedom"
       )
     ]);
 
@@ -1383,6 +1438,14 @@
       ready.push("Platinum");
     }
 
+    if (draconicRecord) {
+      ready.push("Draconic");
+    }
+
+    if (freedomRecord) {
+      ready.push("Freedom");
+    }
+
     if (!ready.length) {
       heading.textContent =
         `${getEventName(
@@ -1390,7 +1453,7 @@
         )}: no predictors ready`;
 
       summary.textContent =
-        "Upload a Gold or Platinum sequence spreadsheet to begin.";
+        "Upload a Gold, Platinum, Draconic or Freedom sequence file to begin.";
 
       return;
     }
@@ -1399,7 +1462,7 @@
       `${getEventName(
         eventId
       )}: ${ready.join(
-        " and "
+        ", "
       )} ready`;
 
     summary.textContent =
@@ -1562,10 +1625,21 @@
      INITIALISE
   ========================================================== */
 
-  async function initialise() {
-    attachUploadControls("gold");
+    async function initialise() {
+    attachUploadControls(
+      "gold"
+    );
+
     attachUploadControls(
       "platinum"
+    );
+
+    attachUploadControls(
+      "draconic"
+    );
+
+    attachUploadControls(
+      "freedom"
     );
 
     restoreSelectedEvent();
@@ -1589,14 +1663,26 @@
     initialise();
   }
 
-  window.ChestPredictorUpload =
+    window.ChestPredictorUpload =
     Object.freeze({
       processGold: () =>
-        processWorkbook("gold"),
+        processWorkbook(
+          "gold"
+        ),
 
       processPlatinum: () =>
         processWorkbook(
           "platinum"
+        ),
+
+      processDraconic: () =>
+        processWorkbook(
+          "draconic"
+        ),
+
+      processFreedom: () =>
+        processWorkbook(
+          "freedom"
         ),
 
       getActiveWorkbook,
