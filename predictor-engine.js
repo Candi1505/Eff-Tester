@@ -1,433 +1,1448 @@
 /* ============================================================
-   CHEST COMPANION V2 — PREDICTOR ENGINE
+   CHEST COMPANION V2 — UPLOADED WORKBOOK PREDICTOR ENGINE
    Built by Cherubim
-
-   Reads:
-   window.GOLD_CHEST_DATA
-   window.PLATINUM_CHEST_DATA
-
-   Supports:
-   - Gold PvP
-   - Gold Breeding
-   - Platinum PvP
-   - Platinum Breeding
-   - Main rarity sequence
-   - Reward sequences by rarity
-   - Platinum bonus rarity sequence
-   - Mismatch detection
-   - Candidate positions
-   - Upcoming reward predictions
-   - Full sequence table
    ============================================================ */
 
 (function initialiseChestPredictor(global) {
   "use strict";
 
-  const SUPPORTED_CHESTS = [
-  "gold",
-  "platinum",
-  "draconic"
-];
-  const SUPPORTED_PROFILES = ["pvp", "breeding"];
+  const SUPPORTED_CHESTS = Object.freeze([
+    "gold",
+    "platinum"
+  ]);
+
+  const EVENT_PROFILE_MAP = Object.freeze({
+    breeding: "breeding",
+    fortification: "pvp",
+    "crystal-caves": "pvp",
+    "temple-raids": "pvp",
+    "team-gauntlet": "pvp",
+    "fight-pits": "pvp",
+    assault: "pvp",
+    pvp: "pvp"
+  });
+
+  const parsedProfiles = new Map();
+
+  let activeEventId = "";
+  let activeChestType = "";
 
   function normalise(value) {
     return String(value ?? "")
       .trim()
       .toLowerCase()
       .replace(/×/g, "x")
+      .replace(/[№#]/g, "")
+      .replace(/[_-]+/g, " ")
+      .replace(/\s+/g, " ")
+      .replace(/[^a-z0-9+%[\](). ]/g, "")
+      .trim();
+  }
+
+  function compactNormalise(value) {
+    return normalise(value)
       .replace(/[^a-z0-9+%]/g, "");
   }
 
   function unique(values) {
-    return [...new Set(values)];
+    const found = new Set();
+
+    return values.filter(value => {
+      const key = compactNormalise(value);
+
+      if (!key || found.has(key)) {
+        return false;
+      }
+
+      found.add(key);
+      return true;
+    });
   }
 
   function positiveModulo(value, length) {
-    if (!length) return 0;
+    if (!length) {
+      return 0;
+    }
+
     return ((value % length) + length) % length;
   }
 
-  function getRawDatabase(chestType) {
-  const chest = normalise(chestType);
+  function cleanCell(value) {
+    if (
+      value === null ||
+      value === undefined
+    ) {
+      return "";
+    }
 
-  /*
-   * Cloud data is now the preferred source.
-   */
-  const cloudDatabase =
-    global.CHEST_DATA?.[chest];
+    if (typeof value === "object") {
+      return (
+        value.result ||
+        value.value ||
+        value.text ||
+        value.v ||
+        ""
+      );
+    }
 
-  if (cloudDatabase) {
-    return cloudDatabase;
+    return String(value).trim();
   }
 
-  /*
-   * Legacy JavaScript databases remain only
-   * as an optional offline fallback.
-   */
-  if (chest === "gold") {
+  function normaliseChestType(chestType) {
+    const chest = compactNormalise(chestType);
+
+    if (chest.includes("platinum")) {
+      return "platinum";
+    }
+
+    if (chest.includes("gold")) {
+      return "gold";
+    }
+
+    return chest;
+  }
+
+  function normaliseProfileName(profileName) {
+    const profile = normalise(profileName);
+
+    if (profile.includes("breed")) {
+      return "breeding";
+    }
+
+    if (
+      profile.includes("assault") ||
+      profile.includes("pvp") ||
+      profile.includes("fortification") ||
+      profile.includes("crystal") ||
+      profile.includes("temple") ||
+      profile.includes("gauntlet") ||
+      profile.includes("fight")
+    ) {
+      return "pvp";
+    }
+
     return (
-      global.GOLD_CHEST_DATA ||
-      global.GOLD_DATABASE ||
+      EVENT_PROFILE_MAP[
+        String(profileName || "").toLowerCase()
+      ] || "pvp"
+    );
+  }
+
+  function getEventProfile(eventId) {
+    return (
+      EVENT_PROFILE_MAP[eventId] ||
+      normaliseProfileName(eventId)
+    );
+  }
+
+  function getProfileCacheKey(
+    eventId,
+    chestType
+  ) {
+    return `${eventId || "unknown"}:${normaliseChestType(
+      chestType
+    )}`;
+  }
+
+  function getWorkbookSheets(workbookRecord) {
+    return Array.isArray(workbookRecord?.sheets)
+      ? workbookRecord.sheets
+      : [];
+  }
+
+  function getSheetByName(
+    workbookRecord,
+    searchName
+  ) {
+    const target = normalise(searchName);
+
+    return (
+      getWorkbookSheets(workbookRecord).find(
+        sheet =>
+          normalise(sheet.sheetName) === target
+      ) || null
+    );
+  }
+
+  function findSheetContaining(
+    workbookRecord,
+    terms
+  ) {
+    const searchTerms = terms.map(normalise);
+
+    return (
+      getWorkbookSheets(workbookRecord).find(
+        sheet => {
+          const name = normalise(
+            sheet.sheetName
+          );
+
+          return searchTerms.every(term =>
+            name.includes(term)
+          );
+        }
+      ) || null
+    );
+  }
+
+  function findCombiningSheet(
+    workbookRecord
+  ) {
+    return (
+      getSheetByName(
+        workbookRecord,
+        "Tables (Combining)"
+      ) ||
+      findSheetContaining(
+        workbookRecord,
+        ["combining"]
+      ) ||
+      findSheetContaining(
+        workbookRecord,
+        ["tables"]
+      ) ||
       null
     );
   }
 
-  if (chest === "platinum") {
+  function findHeaderRowIndex(rows) {
+    return rows.findIndex(row => {
+      const cells = row.map(normalise);
+
+      const hasAssault =
+        cells.some(
+          cell =>
+            cell === "assault" ||
+            cell === "pvp"
+        );
+
+      const hasBreeding =
+        cells.some(
+          cell =>
+            cell === "breeding"
+        );
+
+      return hasAssault && hasBreeding;
+    });
+  }
+
+  function findGroupTitle(
+    rows,
+    columnIndex,
+    headerRowIndex
+  ) {
+    for (
+      let rowIndex = headerRowIndex - 1;
+      rowIndex >= 0;
+      rowIndex -= 1
+    ) {
+      const value = cleanCell(
+        rows[rowIndex]?.[columnIndex]
+      );
+
+      if (!value) {
+        continue;
+      }
+
+      const text = normalise(value);
+
+      if (
+        text === "name" ||
+        text === "rarity" ||
+        text.includes("sequence cycle") ||
+        text === "notes" ||
+        text === "valid for"
+      ) {
+        continue;
+      }
+
+      return value;
+    }
+
+    return "";
+  }
+
+  function findSequenceLength(
+    rows,
+    profileColumnIndex,
+    headerRowIndex
+  ) {
+    for (
+      let rowIndex = headerRowIndex - 1;
+      rowIndex >= 0;
+      rowIndex -= 1
+    ) {
+      const value =
+        rows[rowIndex]?.[
+          profileColumnIndex
+        ];
+
+      const numericValue =
+        Number(value);
+
+      if (
+        Number.isFinite(numericValue) &&
+        numericValue > 0
+      ) {
+        return Math.floor(numericValue);
+      }
+    }
+
+    return null;
+  }
+
+  function readColumnSequence(
+    rows,
+    columnIndex,
+    startRowIndex,
+    expectedLength = null
+  ) {
+    const sequence = [];
+
+    for (
+      let rowIndex = startRowIndex;
+      rowIndex < rows.length;
+      rowIndex += 1
+    ) {
+      const value = cleanCell(
+        rows[rowIndex]?.[columnIndex]
+      );
+
+      if (!value || value.startsWith("=")) {
+        continue;
+      }
+
+      sequence.push(value);
+
+      if (
+        expectedLength &&
+        sequence.length >= expectedLength
+      ) {
+        break;
+      }
+    }
+
+    return sequence;
+  }
+
+  function discoverSequenceGroups(
+    rows,
+    selectedProfile
+  ) {
+    const headerRowIndex =
+      findHeaderRowIndex(rows);
+
+    if (headerRowIndex < 0) {
+      throw new Error(
+        "The predictor sequence columns could not be identified."
+      );
+    }
+
+    const headerRow = rows[headerRowIndex];
+    const groups = [];
+
+    for (
+      let columnIndex = 0;
+      columnIndex < headerRow.length;
+      columnIndex += 1
+    ) {
+      const header = normalise(
+        headerRow[columnIndex]
+      );
+
+      const isProfileColumn =
+        selectedProfile === "breeding"
+          ? header.includes("breeding")
+          : (
+              header.includes("assault") ||
+              header === "pvp"
+            );
+
+      if (!isProfileColumn) {
+        continue;
+      }
+
+      const groupStartColumn =
+        Math.max(0, columnIndex - 1);
+
+      const title = findGroupTitle(
+        rows,
+        groupStartColumn,
+        headerRowIndex
+      );
+
+      const expectedLength =
+        findSequenceLength(
+          rows,
+          columnIndex,
+          headerRowIndex
+        );
+
+      const sequence =
+        readColumnSequence(
+          rows,
+          columnIndex,
+          headerRowIndex + 1,
+          expectedLength
+        );
+
+      if (!sequence.length) {
+        continue;
+      }
+
+      groups.push({
+        title,
+        normalisedTitle:
+          normalise(title),
+        columnIndex,
+        expectedLength,
+        sequence
+      });
+    }
+
+    return groups;
+  }
+
+  function isRewardGroup(group) {
+    const title =
+      group.normalisedTitle;
+
     return (
-      global.PLATINUM_CHEST_DATA ||
-      global.PLATINUM_DATABASE ||
-      null
+      title.includes("common") ||
+      title.includes("rare drop") ||
+      title.includes("epic drop") ||
+      title.includes("legendary drop") ||
+      title.includes("mythic drop")
     );
   }
 
-  if (chest === "draconic") {
+  function getRarityFromGroup(group) {
+    const title =
+      group.normalisedTitle;
+
+    if (title.includes("common")) {
+      return "Common";
+    }
+
+    if (title.includes("rare")) {
+      return "Rare";
+    }
+
+    if (title.includes("epic")) {
+      return "Epic";
+    }
+
+    if (title.includes("legendary")) {
+      return "Legendary";
+    }
+
+    if (title.includes("mythic")) {
+      return "Mythic";
+    }
+
+    return "";
+  }
+
+  function isMainChestGroup(
+    group,
+    chestType
+  ) {
+    const title =
+      group.normalisedTitle;
+
+    if (chestType === "gold") {
+      return (
+        title.includes("gold chest") ||
+        title === "gold"
+      );
+    }
+
+    if (chestType === "platinum") {
+      return (
+        title.includes(
+          "platinum chest"
+        ) ||
+        title === "platinum"
+      );
+    }
+
+    return false;
+  }
+
+  function isBonusGroup(group) {
+    const title =
+      group.normalisedTitle;
+
     return (
-      global.DRACONIC_CHEST_DATA ||
-      global.DRACONIC_DATABASE ||
-      null
+      title.includes("bonus") ||
+      title.includes("bonus chest")
     );
   }
 
-  return null;
-}
+  function inferChestSequenceGroup(
+    groups,
+    chestType
+  ) {
+    const exact = groups.find(group =>
+      isMainChestGroup(
+        group,
+        chestType
+      )
+    );
 
-  function findProfile(database, profileName) {
-    if (!database) return null;
+    if (exact) {
+      return exact;
+    }
 
-    const key = normalise(profileName);
+    const rarityNames = new Set([
+      "common",
+      "rare",
+      "epic",
+      "legendary",
+      "mythic"
+    ]);
 
-    const profiles =
-      database.profiles ||
-      database.eventProfiles ||
-      database.data?.profiles ||
-      {};
+    const possible =
+      groups.filter(group => {
+        const validRarityCount =
+          group.sequence.filter(value =>
+            rarityNames.has(
+              normalise(value)
+            )
+          ).length;
+
+        return (
+          validRarityCount >
+          group.sequence.length * 0.7
+        );
+      });
+
+    if (!possible.length) {
+      return null;
+    }
+
+    if (chestType === "gold") {
+      return (
+        possible.find(group =>
+          group.sequence.some(
+            rarity =>
+              normalise(rarity) ===
+                "common" ||
+              normalise(rarity) ===
+                "rare"
+          )
+        ) ||
+        possible[0]
+      );
+    }
 
     return (
-      profiles[key] ||
-      profiles[profileName] ||
-      profiles[
-        Object.keys(profiles).find(
-          profileKey => normalise(profileKey) === key
+      possible.find(group =>
+        group.sequence.some(
+          rarity =>
+            normalise(rarity) ===
+            "mythic"
         )
-      ] ||
-      null
+      ) ||
+      possible[0]
     );
   }
 
-  function normaliseRewardSequences(profile) {
-    const raw =
-      profile?.rewardSequences ||
-      profile?.rewards ||
-      profile?.rewardSequence ||
-      {};
-
+  function buildRewardRarityMap(
+    rewardSequences
+  ) {
     const result = {};
 
-    Object.entries(raw).forEach(([rarity, sequence]) => {
-      if (!Array.isArray(sequence)) return;
-
-      result[rarity] = sequence
-        .map(item => {
-          if (typeof item === "string") return item;
-
-          return (
-            item?.display ||
-            item?.reward ||
-            item?.name ||
-            item?.label ||
-            ""
-          );
-        })
-        .filter(Boolean);
-    });
+    Object.entries(
+      rewardSequences
+    ).forEach(
+      ([rarity, sequence]) => {
+        sequence.forEach(reward => {
+          result[
+            compactNormalise(reward)
+          ] = rarity;
+        });
+      }
+    );
 
     return result;
   }
 
-  function normaliseProfile(chestType, profileName) {
-    const database = getRawDatabase(chestType);
-    const rawProfile = findProfile(database, profileName);
-
-    if (!database || !rawProfile) return null;
-
-    const mainSequence =
-      rawProfile.chestRaritySequence ||
-      rawProfile.mainRaritySequence ||
-      rawProfile.main ||
-      rawProfile.raritySequence ||
-      [];
-
-    const bonusSequence =
-      rawProfile.bonusRaritySequence ||
-      rawProfile.bonusSequence ||
-      rawProfile.bonus ||
-      [];
-
-    return {
-      chestType: normalise(chestType),
-      profileName: normalise(profileName),
-      label:
-        rawProfile.label ||
-        `${String(profileName).toUpperCase()} ${String(chestType)}`,
-      version:
-        rawProfile.version ||
-        database.source?.seasonWeek ||
-        database.generatedAt ||
-        "",
-      mainSequence: Array.isArray(mainSequence)
-        ? mainSequence.filter(Boolean)
-        : [],
-      bonusSequence: Array.isArray(bonusSequence)
-        ? bonusSequence.filter(Boolean)
-        : [],
-      rewardSequences: normaliseRewardSequences(rawProfile),
-      database
-    };
-  }
-
-  function getProfile(chestType, profileName) {
-    const chest = normalise(chestType);
-    const profile = normalise(profileName);
-
-    if (!SUPPORTED_CHESTS.includes(chest)) return null;
-    if (!SUPPORTED_PROFILES.includes(profile)) return null;
-
-    return normaliseProfile(chest, profile);
-  }
-
-  function getRewardSequence(profile, rarity) {
-    if (!profile) return [];
-
-    const target = normalise(rarity);
-
-    const key = Object.keys(profile.rewardSequences).find(
-      rarityName => normalise(rarityName) === target
-    );
-
-    return key ? profile.rewardSequences[key] : [];
-  }
-
-  function getRewardCatalogue(chestType, profileName, rarity = null) {
-    const profile = getProfile(chestType, profileName);
-    if (!profile) return [];
-
-    if (rarity) {
-      return unique(getRewardSequence(profile, rarity)).sort(
-        (a, b) => a.localeCompare(b)
+  function parseWorkbookProfile(
+    workbookRecord
+  ) {
+    if (!workbookRecord) {
+      throw new Error(
+        "No uploaded predictor workbook is available."
       );
     }
 
-    return unique(
-      Object.values(profile.rewardSequences).flat()
-    ).sort((a, b) => a.localeCompare(b));
+    const chestType =
+      normaliseChestType(
+        workbookRecord.chestType
+      );
+
+    if (
+      !SUPPORTED_CHESTS.includes(
+        chestType
+      )
+    ) {
+      throw new Error(
+        "Only Gold and Platinum predictor files are supported."
+      );
+    }
+
+    const eventId =
+      workbookRecord.eventId ||
+      activeEventId ||
+      "unknown";
+
+    const profileName =
+      getEventProfile(eventId);
+
+    const combiningSheet =
+      findCombiningSheet(
+        workbookRecord
+      );
+
+    if (
+      !combiningSheet ||
+      !Array.isArray(
+        combiningSheet.rows
+      )
+    ) {
+      throw new Error(
+        'The workbook is missing its "Tables (Combining)" sequence sheet.'
+      );
+    }
+
+    const groups =
+      discoverSequenceGroups(
+        combiningSheet.rows,
+        profileName
+      );
+
+    if (!groups.length) {
+      throw new Error(
+        `No ${
+          profileName === "breeding"
+            ? "Breeding"
+            : "PvP / Assault"
+        } sequence columns were found.`
+      );
+    }
+
+    const rewardSequences = {};
+
+    groups
+      .filter(isRewardGroup)
+      .forEach(group => {
+        const rarity =
+          getRarityFromGroup(group);
+
+        if (!rarity) {
+          return;
+        }
+
+        rewardSequences[rarity] =
+          group.sequence;
+      });
+
+    const mainGroup =
+      inferChestSequenceGroup(
+        groups,
+        chestType
+      );
+
+    if (
+      !mainGroup ||
+      !mainGroup.sequence.length
+    ) {
+      throw new Error(
+        `The ${chestType} chest rarity sequence could not be found.`
+      );
+    }
+
+    const bonusGroup =
+      groups.find(isBonusGroup);
+
+    const profile = {
+      source: "uploaded-workbook",
+      chestType,
+      eventId,
+      eventName:
+        workbookRecord.eventName ||
+        eventId,
+      profileName,
+      label:
+        `${
+          workbookRecord.eventName ||
+          eventId
+        } ${
+          chestType === "gold"
+            ? "Gold"
+            : "Platinum"
+        }`,
+      version:
+        workbookRecord.fileName ||
+        "",
+      importedAt:
+        workbookRecord.importedAt ||
+        "",
+      mainSequence:
+        mainGroup.sequence,
+      bonusSequence:
+        bonusGroup
+          ? bonusGroup.sequence
+          : [],
+      rewardSequences,
+      rewardRarityMap:
+        buildRewardRarityMap(
+          rewardSequences
+        ),
+      groups,
+      workbook:
+        workbookRecord
+    };
+
+    parsedProfiles.set(
+      getProfileCacheKey(
+        eventId,
+        chestType
+      ),
+      profile
+    );
+
+    return profile;
   }
 
-  function getRarities(chestType, profileName) {
-    const profile = getProfile(chestType, profileName);
-    if (!profile) return [];
+  function getCachedProfile(
+    chestType,
+    eventOrProfile =
+      activeEventId
+  ) {
+    const chest =
+      normaliseChestType(
+        chestType
+      );
+
+    const eventId =
+      eventOrProfile ||
+      activeEventId;
+
+    const exactKey =
+      getProfileCacheKey(
+        eventId,
+        chest
+      );
+
+    if (
+      parsedProfiles.has(exactKey)
+    ) {
+      return parsedProfiles.get(
+        exactKey
+      );
+    }
+
+    const wantedProfile =
+      getEventProfile(eventId);
+
+    return (
+      [...parsedProfiles.values()]
+        .find(profile =>
+          profile.chestType === chest &&
+          profile.profileName ===
+            wantedProfile
+        ) ||
+      null
+    );
+  }
+
+  async function loadProfile(
+    chestType,
+    eventId =
+      activeEventId
+  ) {
+    const chest =
+      normaliseChestType(
+        chestType
+      );
+
+    if (
+      !SUPPORTED_CHESTS.includes(
+        chest
+      )
+    ) {
+      return null;
+    }
+
+    const cached =
+      getCachedProfile(
+        chest,
+        eventId
+      );
+
+    if (cached) {
+      return cached;
+    }
+
+    if (
+      !global.ChestPredictorUpload
+        ?.getWorkbook
+    ) {
+      return null;
+    }
+
+    const workbookRecord =
+      await global.ChestPredictorUpload
+        .getWorkbook(
+          eventId,
+          chest
+        );
+
+    if (!workbookRecord) {
+      return null;
+    }
+
+    return parseWorkbookProfile(
+      workbookRecord
+    );
+  }
+
+  async function activate(
+    chestType,
+    eventId =
+      activeEventId
+  ) {
+    activeChestType =
+      normaliseChestType(
+        chestType
+      );
+
+    activeEventId =
+      eventId ||
+      global.ChestPredictorUpload
+        ?.getSelectedEvent?.() ||
+      "";
+
+    const profile =
+      await loadProfile(
+        activeChestType,
+        activeEventId
+      );
+
+    global.dispatchEvent(
+      new CustomEvent(
+        "chest-companion-predictor-activated",
+        {
+          detail: {
+            chestType:
+              activeChestType,
+            eventId:
+              activeEventId,
+            profile
+          }
+        }
+      )
+    );
+
+    return profile;
+  }
+
+  function getProfile(
+    chestType,
+    eventOrProfile =
+      activeEventId
+  ) {
+    return getCachedProfile(
+      chestType,
+      eventOrProfile
+    );
+  }
+    function getRewardSequence(
+    profile,
+    rarity
+  ) {
+    if (!profile) {
+      return [];
+    }
+
+    const target =
+      compactNormalise(rarity);
+
+    const matchingKey =
+      Object.keys(
+        profile.rewardSequences
+      ).find(key =>
+        compactNormalise(key) ===
+        target
+      );
+
+    return matchingKey
+      ? profile.rewardSequences[
+          matchingKey
+        ]
+      : [];
+  }
+
+  function getRarities(
+    chestType,
+    eventOrProfile =
+      activeEventId
+  ) {
+    const profile =
+      getProfile(
+        chestType,
+        eventOrProfile
+      );
+
+    if (!profile) {
+      return [];
+    }
 
     return unique([
       ...profile.mainSequence,
       ...profile.bonusSequence,
-      ...Object.keys(profile.rewardSequences)
+      ...Object.keys(
+        profile.rewardSequences
+      )
     ]);
   }
 
-  function sequenceMatchesAt(sequence, observations, startPosition) {
-    if (!sequence.length || !observations.length) return false;
+  function getRewardCatalogue(
+    chestType,
+    eventOrProfile =
+      activeEventId,
+    rarity = null
+  ) {
+    const profile =
+      getProfile(
+        chestType,
+        eventOrProfile
+      );
 
-    return observations.every((observation, index) => {
-      const sequenceValue =
-        sequence[
-          positiveModulo(startPosition + index, sequence.length)
-        ];
+    if (!profile) {
+      return [];
+    }
 
-      return normalise(sequenceValue) === normalise(observation);
-    });
+    if (rarity) {
+      return unique(
+        getRewardSequence(
+          profile,
+          rarity
+        )
+      ).sort(
+        (a, b) =>
+          a.localeCompare(b)
+      );
+    }
+
+    return unique(
+      Object.values(
+        profile.rewardSequences
+      ).flat()
+    ).sort(
+      (a, b) =>
+        a.localeCompare(b)
+    );
   }
 
-  function findCircularMatches(sequence, observations) {
-    if (!Array.isArray(sequence) || !sequence.length) return [];
-    if (!Array.isArray(observations) || !observations.length) {
-      return sequence.map((_, index) => index);
+  function findRewardRarity(
+    profile,
+    reward
+  ) {
+    if (
+      !profile ||
+      !reward
+    ) {
+      return "";
+    }
+
+    return (
+      profile.rewardRarityMap[
+        compactNormalise(reward)
+      ] ||
+      ""
+    );
+  }
+
+  function cleanDrops(
+    drops,
+    profile = null
+  ) {
+    if (!Array.isArray(drops)) {
+      return [];
+    }
+
+    return drops
+      .map(
+        (drop, index) => {
+          const reward =
+            drop?.reward ||
+            drop?.display ||
+            drop?.prize ||
+            drop?.name ||
+            drop?.label ||
+            (
+              typeof drop ===
+              "string"
+                ? drop
+                : ""
+            );
+
+          const rarity =
+            drop?.rarity ||
+            drop?.sequence ||
+            drop?.chestRarity ||
+            findRewardRarity(
+              profile,
+              reward
+            );
+
+          return {
+            index,
+            rarity,
+            reward,
+            bonus:
+              Boolean(
+                drop?.bonus
+              )
+          };
+        }
+      )
+      .filter(drop =>
+        drop.rarity ||
+        drop.reward
+      );
+  }
+
+  function splitDrops(
+    drops,
+    profile
+  ) {
+    const cleaned =
+      cleanDrops(
+        drops,
+        profile
+      );
+
+    return {
+      all: cleaned,
+
+      regular:
+        cleaned.filter(
+          drop =>
+            !drop.bonus
+        ),
+
+      bonus:
+        cleaned.filter(
+          drop =>
+            drop.bonus
+        )
+    };
+  }
+
+  function valuesMatch(
+    first,
+    second
+  ) {
+    return (
+      compactNormalise(first) ===
+      compactNormalise(second)
+    );
+  }
+
+  function sequenceMatchesAt(
+    sequence,
+    observations,
+    startPosition
+  ) {
+    if (
+      !sequence.length ||
+      !observations.length
+    ) {
+      return false;
+    }
+
+    return observations.every(
+      (
+        observation,
+        observationIndex
+      ) => {
+        const sequenceIndex =
+          positiveModulo(
+            startPosition +
+              observationIndex,
+            sequence.length
+          );
+
+        return valuesMatch(
+          sequence[
+            sequenceIndex
+          ],
+          observation
+        );
+      }
+    );
+  }
+
+  function findCircularMatches(
+    sequence,
+    observations
+  ) {
+    if (
+      !Array.isArray(sequence) ||
+      !sequence.length
+    ) {
+      return [];
+    }
+
+    if (
+      !Array.isArray(observations) ||
+      !observations.length
+    ) {
+      return sequence.map(
+        (_, index) =>
+          index
+      );
     }
 
     const candidates = [];
 
-    for (let start = 0; start < sequence.length; start += 1) {
-      if (sequenceMatchesAt(sequence, observations, start)) {
-        candidates.push(start);
+    for (
+      let startPosition = 0;
+      startPosition <
+      sequence.length;
+      startPosition += 1
+    ) {
+      if (
+        sequenceMatchesAt(
+          sequence,
+          observations,
+          startPosition
+        )
+      ) {
+        candidates.push(
+          startPosition
+        );
       }
     }
 
     return candidates;
   }
 
-  function cleanDrops(drops) {
-    if (!Array.isArray(drops)) return [];
+  function solveRaritySequence(
+    profile,
+    drops
+  ) {
+    const split =
+      splitDrops(
+        drops,
+        profile
+      );
 
-    return drops
-      .map((drop, index) => ({
-        index,
-        rarity:
-          drop?.rarity ||
-          drop?.sequence ||
-          drop?.chestRarity ||
-          "",
-        reward:
-          drop?.reward ||
-          drop?.display ||
-          drop?.prize ||
-          "",
-        bonus: Boolean(drop?.bonus)
-      }))
-      .filter(drop => drop.rarity || drop.reward);
-  }
+    const mainObservations =
+      split.regular
+        .map(drop =>
+          drop.rarity
+        )
+        .filter(Boolean);
 
-  function splitDrops(drops) {
-    const cleaned = cleanDrops(drops);
+    const bonusObservations =
+      split.bonus
+        .map(drop =>
+          drop.rarity
+        )
+        .filter(Boolean);
 
     return {
-      all: cleaned,
-      regular: cleaned.filter(drop => !drop.bonus),
-      bonus: cleaned.filter(drop => drop.bonus)
+      mainObservations,
+
+      bonusObservations,
+
+      mainCandidates:
+        findCircularMatches(
+          profile.mainSequence,
+          mainObservations
+        ),
+
+      bonusCandidates:
+        profile.bonusSequence.length
+          ? findCircularMatches(
+              profile.bonusSequence,
+              bonusObservations
+            )
+          : [],
+
+      regularCount:
+        split.regular.length,
+
+      bonusCount:
+        split.bonus.length
     };
   }
 
-  function solveRaritySequence(profile, drops) {
-    const split = splitDrops(drops);
+  function solveRewardSequences(
+    profile,
+    drops
+  ) {
+    const split =
+      splitDrops(
+        drops,
+        profile
+      );
 
-    const mainObservations = split.regular.map(
-      drop => drop.rarity
-    );
-
-    const bonusObservations = split.bonus.map(
-      drop => drop.rarity
-    );
-
-    return {
-      mainCandidates: findCircularMatches(
-        profile.mainSequence,
-        mainObservations
-      ),
-      bonusCandidates: profile.bonusSequence.length
-        ? findCircularMatches(
-            profile.bonusSequence,
-            bonusObservations
-          )
-        : [],
-      regularCount: split.regular.length,
-      bonusCount: split.bonus.length
-    };
-  }
-
-  function solveRewardSequences(profile, drops) {
-    const split = splitDrops(drops);
     const result = {};
 
-    Object.keys(profile.rewardSequences).forEach(rarity => {
-      const observations = split.all
-        .filter(
-          drop =>
-            normalise(drop.rarity) === normalise(rarity) &&
+    Object.keys(
+      profile.rewardSequences
+    ).forEach(rarity => {
+      const observations =
+        split.all
+          .filter(drop =>
+            valuesMatch(
+              drop.rarity,
+              rarity
+            )
+          )
+          .map(drop =>
             drop.reward
-        )
-        .map(drop => drop.reward);
+          )
+          .filter(Boolean);
 
       result[rarity] = {
         observations,
-        candidates: findCircularMatches(
-          profile.rewardSequences[rarity],
-          observations
-        )
+
+        candidates:
+          findCircularMatches(
+            profile.rewardSequences[
+              rarity
+            ],
+            observations
+          )
       };
     });
 
     return result;
   }
 
-  function solve(chestType, profileName, drops) {
-    const profile = getProfile(chestType, profileName);
+  function calculateConfidence(
+    solution
+  ) {
+    if (!solution?.matched) {
+      return 0;
+    }
+
+    const tracks = [
+      solution.rarity
+        .mainCandidates,
+
+      ...Object.values(
+        solution.rewards
+      )
+        .filter(track =>
+          track.observations.length
+        )
+        .map(track =>
+          track.candidates
+        )
+    ];
+
+    if (
+      solution.rarity
+        .bonusObservations.length &&
+      solution.profile
+        .bonusSequence.length
+    ) {
+      tracks.push(
+        solution.rarity
+          .bonusCandidates
+      );
+    }
+
+    if (!tracks.length) {
+      return 0;
+    }
+
+    const scores =
+      tracks.map(candidates => {
+        if (!candidates.length) {
+          return 0;
+        }
+
+        if (
+          candidates.length === 1
+        ) {
+          return 100;
+        }
+
+        return Math.max(
+          1,
+          Math.round(
+            100 /
+              candidates.length
+          )
+        );
+      });
+
+    return Math.round(
+      scores.reduce(
+        (total, score) =>
+          total + score,
+        0
+      ) /
+      scores.length
+    );
+  }
+
+  function solve(
+    chestType,
+    eventOrProfile,
+    drops
+  ) {
+    const profile =
+      getProfile(
+        chestType,
+        eventOrProfile
+      );
 
     if (!profile) {
       return {
         available: false,
         matched: false,
-        reason: "Predictor data is unavailable."
+        confidence: 0,
+        reason:
+          "Upload and activate a predictor file for this event."
       };
     }
 
-    const raritySolution = solveRaritySequence(profile, drops);
-    const rewardSolutions = solveRewardSequences(profile, drops);
+    const cleanedDrops =
+      cleanDrops(
+        drops,
+        profile
+      );
 
-    const rewardMismatch = Object.values(rewardSolutions).some(
-      solution =>
-        solution.observations.length > 0 &&
-        solution.candidates.length === 0
-    );
+    const unknownRewards =
+      cleanedDrops.filter(
+        drop =>
+          drop.reward &&
+          !drop.rarity
+      );
 
-    const mainMismatch =
-      raritySolution.regularCount > 0 &&
-      raritySolution.mainCandidates.length === 0;
-
-    const bonusMismatch =
-      raritySolution.bonusCount > 0 &&
-      profile.bonusSequence.length > 0 &&
-      raritySolution.bonusCandidates.length === 0;
-
-    const matched = !(
-      rewardMismatch ||
-      mainMismatch ||
-      bonusMismatch
-    );
-
-    const unresolvedTracks = [
-      raritySolution.mainCandidates,
-      ...Object.values(rewardSolutions)
-        .filter(solution => solution.observations.length)
-        .map(solution => solution.candidates)
-    ];
-
-    if (
-      raritySolution.bonusCount &&
-      profile.bonusSequence.length
-    ) {
-      unresolvedTracks.push(raritySolution.bonusCandidates);
+    if (unknownRewards.length) {
+      return {
+        available: true,
+        matched: false,
+        confidence: 0,
+        profile,
+        reason:
+          `Reward not found in this predictor: ${
+            unknownRewards[0]
+              .reward
+          }`
+      };
     }
 
-    const exactTracks = unresolvedTracks.filter(
-      candidates => candidates.length === 1
-    ).length;
+    const raritySolution =
+      solveRaritySequence(
+        profile,
+        cleanedDrops
+      );
 
-    const totalTracks = unresolvedTracks.length;
+    const rewardSolutions =
+      solveRewardSequences(
+        profile,
+        cleanedDrops
+      );
 
-    const confidence =
-      !matched || !totalTracks
-        ? 0
-        : Math.round((exactTracks / totalTracks) * 100);
+    const mainMismatch =
+      raritySolution
+        .mainObservations.length >
+        0 &&
+      raritySolution
+        .mainCandidates.length ===
+        0;
 
-    return {
+    const bonusMismatch =
+      raritySolution
+        .bonusObservations.length >
+        0 &&
+      profile.bonusSequence.length >
+        0 &&
+      raritySolution
+        .bonusCandidates.length ===
+        0;
+
+    const rewardMismatch =
+      Object.values(
+        rewardSolutions
+      ).some(track =>
+        track.observations.length >
+          0 &&
+        track.candidates.length ===
+          0
+      );
+
+    const matched =
+      !mainMismatch &&
+      !bonusMismatch &&
+      !rewardMismatch;
+
+    const result = {
       available: true,
       matched,
       profile,
-      rarity: raritySolution,
-      rewards: rewardSolutions,
-      confidence,
-      exactTracks,
-      totalTracks
+      rarity:
+        raritySolution,
+      rewards:
+        rewardSolutions,
+      confidence: 0,
+      reason: matched
+        ? ""
+        : "The recorded drops do not match this uploaded sequence."
     };
+
+    result.confidence =
+      calculateConfidence(
+        result
+      );
+
+    return result;
   }
 
   function findFirstMismatch(
     chestType,
-    profileName,
+    eventOrProfile,
     drops
   ) {
-    const cleaned = cleanDrops(drops);
+    const profile =
+      getProfile(
+        chestType,
+        eventOrProfile
+      );
 
-    for (let index = 0; index < cleaned.length; index += 1) {
-      const partial = cleaned.slice(0, index + 1);
-      const result = solve(chestType, profileName, partial);
+    const cleaned =
+      cleanDrops(
+        drops,
+        profile
+      );
+
+    for (
+      let index = 0;
+      index <
+      cleaned.length;
+      index += 1
+    ) {
+      const result =
+        solve(
+          chestType,
+          eventOrProfile,
+          cleaned.slice(
+            0,
+            index + 1
+          )
+        );
 
       if (!result.matched) {
         return index + 1;
@@ -437,93 +1452,192 @@
     return null;
   }
 
-  function getLikelyCurrentPosition(solution) {
-    if (!solution?.matched) return null;
+  function getLikelyCurrentPosition(
+    solution
+  ) {
+    if (!solution?.matched) {
+      return null;
+    }
 
-    const candidates = solution.rarity.mainCandidates;
+    const candidates =
+      solution.rarity
+        .mainCandidates;
 
-    if (candidates.length !== 1) return null;
+    if (
+      candidates.length !== 1 ||
+      !solution.rarity
+        .regularCount
+    ) {
+      return null;
+    }
 
     return positiveModulo(
-      candidates[0] + solution.rarity.regularCount - 1,
-      solution.profile.mainSequence.length
+      candidates[0] +
+        solution.rarity
+          .regularCount -
+        1,
+      solution.profile
+        .mainSequence.length
     );
   }
 
   function predictUpcoming(
     chestType,
-    profileName,
+    eventOrProfile,
     drops,
     amount = 5
   ) {
-    const solution = solve(chestType, profileName, drops);
+    const solution =
+      solve(
+        chestType,
+        eventOrProfile,
+        drops
+      );
 
-    if (!solution.available || !solution.matched) return [];
+    if (
+      !solution.available ||
+      !solution.matched
+    ) {
+      return [];
+    }
 
-    const profile = solution.profile;
-    const mainCandidates = solution.rarity.mainCandidates;
+    const profile =
+      solution.profile;
 
-    if (mainCandidates.length !== 1) return [];
+    const mainCandidates =
+      solution.rarity
+        .mainCandidates;
 
-    const regularDrops = splitDrops(drops).regular;
+    if (
+      mainCandidates.length !== 1
+    ) {
+      return [];
+    }
+
+    const split =
+      splitDrops(
+        drops,
+        profile
+      );
+
     const rarityCounts = {};
 
-    regularDrops.forEach(drop => {
-      const key = normalise(drop.rarity);
-      rarityCounts[key] = (rarityCounts[key] || 0) + 1;
-    });
+    split.regular.forEach(
+      drop => {
+        const key =
+          compactNormalise(
+            drop.rarity
+          );
+
+        rarityCounts[key] =
+          (
+            rarityCounts[key] ||
+            0
+          ) + 1;
+      }
+    );
 
     const predictions = [];
-    const mainStart = mainCandidates[0];
 
-    for (let step = 0; step < amount; step += 1) {
-      const mainIndex = positiveModulo(
-        mainStart + regularDrops.length + step,
-        profile.mainSequence.length
-      );
-
-      const rarity = profile.mainSequence[mainIndex];
-      const rewardSolution =
-        Object.entries(solution.rewards).find(
-          ([rewardRarity]) =>
-            normalise(rewardRarity) === normalise(rarity)
-        )?.[1];
-
-      const rewardSequence = getRewardSequence(
-        profile,
-        rarity
-      );
-
-      let reward = "Position still narrowing";
-
-      if (
-        rewardSolution &&
-        rewardSolution.candidates.length === 1 &&
-        rewardSequence.length
-      ) {
-        const usedBefore =
-          rarityCounts[normalise(rarity)] || 0;
-
-        const sameRarityPredictions = predictions.filter(
-          item =>
-            normalise(item.rarity) === normalise(rarity)
-        ).length;
-
-        const rewardIndex = positiveModulo(
-          rewardSolution.candidates[0] +
-            usedBefore +
-            sameRarityPredictions,
-          rewardSequence.length
+    for (
+      let step = 0;
+      step < amount;
+      step += 1
+    ) {
+      const mainIndex =
+        positiveModulo(
+          mainCandidates[0] +
+            split.regular.length +
+            step,
+          profile.mainSequence.length
         );
 
-        reward = rewardSequence[rewardIndex];
+      const rarity =
+        profile.mainSequence[
+          mainIndex
+        ];
+
+      const rarityKey =
+        compactNormalise(
+          rarity
+        );
+
+      const rewardTrackKey =
+        Object.keys(
+          solution.rewards
+        ).find(key =>
+          compactNormalise(key) ===
+          rarityKey
+        );
+
+      const rewardTrack =
+        rewardTrackKey
+          ? solution.rewards[
+              rewardTrackKey
+            ]
+          : null;
+
+      const rewardSequence =
+        getRewardSequence(
+          profile,
+          rarity
+        );
+
+      let reward =
+        "Reward position still narrowing";
+
+      if (
+        rewardTrack &&
+        rewardTrack.candidates
+          .length === 1 &&
+        rewardSequence.length
+      ) {
+        const openedCount =
+          rarityCounts[
+            rarityKey
+          ] ||
+          0;
+
+        const sameRarityAhead =
+          predictions.filter(
+            prediction =>
+              valuesMatch(
+                prediction.rarity,
+                rarity
+              )
+          ).length;
+
+        const rewardIndex =
+          positiveModulo(
+            rewardTrack
+              .candidates[0] +
+              openedCount +
+              sameRarityAhead,
+            rewardSequence.length
+          );
+
+        reward =
+          rewardSequence[
+            rewardIndex
+          ];
       }
 
       predictions.push({
-        number: step + 1,
-        position: mainIndex + 1,
+        number:
+          step + 1,
+
+        position:
+          mainIndex + 1,
+
         rarity,
-        reward
+
+        reward,
+
+        rewardCandidates:
+          rewardTrack
+            ?.candidates
+            ?.length ||
+          0
       });
     }
 
@@ -532,40 +1646,82 @@
 
   function buildSequenceTable(
     chestType,
-    profileName,
+    eventOrProfile =
+      activeEventId,
     limit = null
   ) {
-    const profile = getProfile(chestType, profileName);
-    if (!profile) return [];
-
-    const rewardCounters = {};
-    const rows = [];
-
-    const maximum = limit
-      ? Math.min(limit, profile.mainSequence.length)
-      : profile.mainSequence.length;
-
-    for (let index = 0; index < maximum; index += 1) {
-      const rarity = profile.mainSequence[index];
-      const key = normalise(rarity);
-
-      rewardCounters[key] = rewardCounters[key] || 0;
-
-      const rewardSequence = getRewardSequence(
-        profile,
-        rarity
+    const profile =
+      getProfile(
+        chestType,
+        eventOrProfile
       );
 
-      const reward = rewardSequence.length
-        ? rewardSequence[
-            rewardCounters[key] % rewardSequence.length
-          ]
-        : "Reward unavailable";
+    if (!profile) {
+      return [];
+    }
 
-      rewardCounters[key] += 1;
+    const rewardCounters = {};
+
+    const maximum =
+      limit
+        ? Math.min(
+            Number(limit),
+            profile.mainSequence
+              .length
+          )
+        : profile.mainSequence
+            .length;
+
+    const rows = [];
+
+    for (
+      let index = 0;
+      index < maximum;
+      index += 1
+    ) {
+      const rarity =
+        profile.mainSequence[
+          index
+        ];
+
+      const rarityKey =
+        compactNormalise(
+          rarity
+        );
+
+      rewardCounters[
+        rarityKey
+      ] =
+        rewardCounters[
+          rarityKey
+        ] ||
+        0;
+
+      const rewardSequence =
+        getRewardSequence(
+          profile,
+          rarity
+        );
+
+      const reward =
+        rewardSequence.length
+          ? rewardSequence[
+              positiveModulo(
+                rewardCounters[
+                  rarityKey
+                ],
+                rewardSequence.length
+              )
+            ]
+          : "Reward unavailable";
+
+      rewardCounters[
+        rarityKey
+      ] += 1;
 
       rows.push({
-        position: index + 1,
+        position:
+          index + 1,
         rarity,
         reward,
         bonus: false
@@ -575,51 +1731,234 @@
     return rows;
   }
 
-  function buildBonusTable(chestType, profileName) {
-    const profile = getProfile(chestType, profileName);
-    if (!profile?.bonusSequence.length) return [];
+  function buildBonusTable(
+    chestType,
+    eventOrProfile =
+      activeEventId
+  ) {
+    const profile =
+      getProfile(
+        chestType,
+        eventOrProfile
+      );
 
-    return profile.bonusSequence.map((rarity, index) => ({
-      position: index + 1,
-      rarity,
-      bonus: true
-    }));
+    if (
+      !profile ||
+      !profile.bonusSequence.length
+    ) {
+      return [];
+    }
+
+    return profile.bonusSequence.map(
+      (rarity, index) => ({
+        position:
+          index + 1,
+        rarity,
+        bonus: true
+      })
+    );
   }
 
   function databaseStatus() {
+    const profiles =
+      [...parsedProfiles.values()];
+
     return {
-      gold: Boolean(getRawDatabase("gold")),
-      platinum: Boolean(getRawDatabase("platinum")),
-      goldPvP: Boolean(getProfile("gold", "pvp")),
-      goldBreeding: Boolean(
-        getProfile("gold", "breeding")
-      ),
-      platinumPvP: Boolean(
-        getProfile("platinum", "pvp")
-      ),
-      platinumBreeding: Boolean(
-        getProfile("platinum", "breeding")
-      )
+      activeEventId,
+      activeChestType,
+
+      gold:
+        profiles.some(
+          profile =>
+            profile.chestType ===
+            "gold"
+        ),
+
+      platinum:
+        profiles.some(
+          profile =>
+            profile.chestType ===
+            "platinum"
+        ),
+
+      loadedProfiles:
+        profiles.map(
+          profile => ({
+            eventId:
+              profile.eventId,
+
+            chestType:
+              profile.chestType,
+
+            profileName:
+              profile.profileName,
+
+            rewards:
+              Object.values(
+                profile.rewardSequences
+              ).flat().length,
+
+            sequenceLength:
+              profile.mainSequence
+                .length
+          })
+        )
     };
   }
 
-  global.ChestPredictorEngine = Object.freeze({
-    getProfile,
-    getRarities,
-    getRewardCatalogue,
-    getRewardSequence,
-    solve,
-    findFirstMismatch,
-    getLikelyCurrentPosition,
-    predictUpcoming,
-    buildSequenceTable,
-    buildBonusTable,
-    databaseStatus,
-    normalise
-  });
+  global.addEventListener(
+    "chest-companion-workbook-imported",
+    event => {
+      try {
+        const profile =
+          parseWorkbookProfile(
+            event.detail
+          );
 
-  console.info(
-    "[Chest Companion] Predictor engine ready.",
-    databaseStatus()
+        console.info(
+          "[Chest Companion] Workbook profile parsed.",
+          {
+            event:
+              profile.eventName,
+
+            chest:
+              profile.chestType,
+
+            profile:
+              profile.profileName,
+
+            sequenceLength:
+              profile.mainSequence
+                .length
+          }
+        );
+
+        global.dispatchEvent(
+          new CustomEvent(
+            "chest-companion-predictor-ready",
+            {
+              detail: profile
+            }
+          )
+        );
+      } catch (error) {
+        console.error(
+          "[Chest Companion] Workbook parsing failed.",
+          error
+        );
+
+        global.dispatchEvent(
+          new CustomEvent(
+            "chest-companion-predictor-error",
+            {
+              detail: {
+                error,
+
+                message:
+                  error?.message ||
+                  "The predictor workbook could not be parsed."
+              }
+            }
+          )
+        );
+      }
+    }
   );
+
+  global.addEventListener(
+    "chest-companion-event-changed",
+    async event => {
+      activeEventId =
+        event.detail?.eventId ||
+        "";
+
+      if (!activeEventId) {
+        return;
+      }
+
+      try {
+        await Promise.all([
+          loadProfile(
+            "gold",
+            activeEventId
+          ),
+
+          loadProfile(
+            "platinum",
+            activeEventId
+          )
+        ]);
+
+        console.info(
+          "[Chest Companion] Predictor profiles restored for event.",
+          activeEventId
+        );
+      } catch (error) {
+        console.error(
+          "[Chest Companion] Predictor restoration failed.",
+          error
+        );
+      }
+    }
+  );
+
+  async function initialise() {
+    activeEventId =
+      global.ChestPredictorUpload
+        ?.getSelectedEvent?.() ||
+      "";
+
+    if (activeEventId) {
+      await Promise.all([
+        loadProfile(
+          "gold",
+          activeEventId
+        ),
+
+        loadProfile(
+          "platinum",
+          activeEventId
+        )
+      ]);
+    }
+
+    console.info(
+      "[Chest Companion] Uploaded workbook predictor engine ready.",
+      databaseStatus()
+    );
+  }
+
+  if (
+    document.readyState ===
+    "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      initialise
+    );
+  } else {
+    initialise();
+  }
+
+  global.ChestPredictorEngine =
+    Object.freeze({
+      activate,
+      loadProfile,
+      parseWorkbookProfile,
+      getProfile,
+      getRarities,
+      getRewardCatalogue,
+      getRewardSequence,
+      findRewardRarity,
+      cleanDrops,
+      solve,
+      findFirstMismatch,
+      getLikelyCurrentPosition,
+      predictUpcoming,
+      buildSequenceTable,
+      buildBonusTable,
+      databaseStatus,
+      getEventProfile,
+      normalise
+    });
 })(window);
