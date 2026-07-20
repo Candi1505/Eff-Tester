@@ -21,10 +21,30 @@
   };
 
   function normaliseChestType(value) {
-    return String(value || "")
-      .trim()
-      .toLowerCase();
+  const chest = String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ");
+
+  if (chest.includes("platinum")) {
+    return "platinum";
   }
+
+  if (chest.includes("gold")) {
+    return "gold";
+  }
+
+  if (chest.includes("draconic")) {
+    return "draconic";
+  }
+
+  if (chest.includes("freedom")) {
+    return "freedom";
+  }
+
+  return chest;
+}
 
   function getDatabaseService() {
     return (
