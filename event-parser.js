@@ -247,5 +247,50 @@ class EventParser {
     return new EventParser(rawData).parse();
   }
 }
+/**
+ * Developer helper.
+ * Tests an about_v2 response and prints the results.
+ */
+window.testEventParser = function(rawData) {
+
+    try {
+
+        const result = EventParser.parse(rawData);
+
+        console.group("🐉 Noir Event Parser");
+
+        console.log("Event:", result.event);
+        console.log("Ready:", result.ready);
+
+        Object.values(result.chests).forEach(chest => {
+
+            console.group(chest.label);
+
+            console.log("Found:", chest.found);
+            console.log("Index:", chest.index);
+            console.log("Deck Length:", chest.deckLength);
+            console.log("Current Value:", chest.currentValue);
+
+            if (chest.warnings.length) {
+                console.warn(chest.warnings);
+            }
+
+            console.groupEnd();
+
+        });
+
+        console.groupEnd();
+
+        return result;
+
+    } catch (error) {
+
+        console.error(error);
+
+        return null;
+
+    }
+
+};
 
 window.EventParser = EventParser;
