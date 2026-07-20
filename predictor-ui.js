@@ -1193,9 +1193,9 @@
               type="checkbox"
             />
 
-            <span>
-              This was a Platinum bonus chest
-            </span>
+            <span id="ccBonusLabel">
+  This was a Gold bonus chest
+</span>
           </label>
         </section>
         <section class="cc-card">
@@ -1315,9 +1315,12 @@
               id="ccBonusTableSection"
               class="cc-hidden"
             >
-              <h3 style="margin-top: 18px">
-                Platinum bonus rarity sequence
-              </h3>
+              <h3
+  id="ccBonusTableHeading"
+  style="margin-top: 18px"
+>
+  Bonus rarity sequence
+</h3>
 
               <div
                 id="ccBonusTable"
@@ -1354,19 +1357,36 @@
       `${eventName} • uploaded spreadsheet rewards`;
 
 
-    document
-      .getElementById(
-        "ccBonusRow"
-      )
-      .classList.toggle(
+    const bonusRow =
+  document.getElementById(
+    "ccBonusRow"
+  );
 
-        "cc-hidden",
+const bonusLabel =
+  document.getElementById(
+    "ccBonusLabel"
+  );
 
-        state.chestType !==
-          "platinum"
+bonusRow.classList.remove(
+  "cc-hidden"
+);
 
-      );
+bonusLabel.textContent =
+  `This was a ${titleCase(
+    state.chestType
+  )} bonus chest`;
 
+const bonusTableHeading =
+  document.getElementById(
+    "ccBonusTableHeading"
+  );
+
+if (bonusTableHeading) {
+  bonusTableHeading.textContent =
+    `${titleCase(
+      state.chestType
+    )} bonus rarity sequence`;
+}
   }
 
     function renderSelectors() {
@@ -1840,10 +1860,7 @@ chestContainer.innerHTML = [
 
 
     const bonus =
-      state.chestType ===
-        "platinum" &&
-
-      document.getElementById(
+   document.getElementById(
         "ccBonusCheck"
       ).checked;
 
