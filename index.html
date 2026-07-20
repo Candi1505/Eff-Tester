@@ -726,6 +726,57 @@
 
   </section>
 
+<!-- LIVE EVENT DATA IMPORT -->
+
+<section class="glass-panel content-panel">
+
+  <div class="section-heading">
+
+    <div>
+      <p class="eyebrow">
+        LIVE EVENT DATA
+      </p>
+
+      <h3>
+        Import about_v2
+      </h3>
+    </div>
+
+    <div id="eventImportBadge" class="status-badge">
+      Not imported
+    </div>
+
+  </div>
+
+  <p class="muted-text">
+    Upload the captured War Dragons about_v2 response to detect the
+    Gold, Platinum, Draconic and Freedom decks.
+  </p>
+
+  <input
+    id="eventDataFile"
+    type="file"
+    accept=".json,.txt,application/json,text/plain"
+  >
+
+  <button
+    id="importEventDataButton"
+    class="button primary-button full-width-button"
+    type="button"
+  >
+    Import Live Event Data
+  </button>
+
+  <p id="eventImportStatus" class="muted-text">
+    No live event data imported.
+  </p>
+
+  <div
+    id="eventImportResults"
+    class="predictor-file-details hidden"
+  ></div>
+
+</section>
 
   <!-- GOLD PREDICTOR -->
 
@@ -1171,10 +1222,8 @@
 <script src="database.js"></script>
 
 <script src="predictor-cloud.js"></script>
-
-
 <script src="event-parser.js"></script>
-
+<script src="event-import.js"></script>
 <script src="predictor-engine.js"></script>
 
 <script src="app.js"></script>
