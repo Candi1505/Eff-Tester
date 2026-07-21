@@ -356,6 +356,17 @@ try {
           }
         })
       );
+      window.dispatchEvent(
+  new CustomEvent("noir:event-imported", {
+    detail: {
+      parsed,
+      eventData: parsed,
+      file: window.currentEventSourceFile,
+      sourceFile:
+        window.currentEventSourceFile
+    }
+  })
+);
 
       console.group("🐉 Noir Live Event Import");
       console.log("Source file:", window.currentEventSourceFile);
