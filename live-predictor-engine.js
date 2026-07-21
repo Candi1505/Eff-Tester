@@ -2,22 +2,28 @@
    CHEST COMPANION BETA
    LIVE PREDICTOR ENGINE
 
-   Uses imported War Dragons about_v2 event data.
+   Must load after:
+   - event-parser.js
+   - event-import.js
 
-   Features:
-   - Reads Gold, Platinum, Draconic and Freedom decks
-   - Remembers the selected chest
-   - Records observed chest values
-   - Solves the player's position in a live deck
-   - Predicts upcoming raw deck values
-   - Saves progress locally on the device
+   Responsibilities:
+   - Reads published War Dragons event data
+   - Supports Gold, Platinum, Draconic and Freedom decks
+   - Creates a searchable reward catalogue
+   - Records each player's observations locally
+   - Solves the player's position
+   - Predicts upcoming rewards
+   - Provides an admin-ready event publishing API
    ============================================================ */
 
 (function initialiseLivePredictorEngine(window) {
   "use strict";
 
-  const STORAGE_KEY =
+  const PLAYER_STORAGE_KEY =
     "chestCompanionLivePredictor";
+
+  const EVENT_CACHE_KEY =
+    "chestCompanionPublishedEvent";
 
   const SUPPORTED_CHESTS = [
     "gold",
@@ -33,13 +39,89 @@
     freedom: "Freedom"
   };
 
-  let state = loadState();
+  let state =
+    loadPlayerState();
 
-  /* ----------------------------------------------------------
-     STATE
-     ---------------------------------------------------------- */
+  let cachedPublishedEvent =
+    loadCachedPublishedEvent();
 
-  function createDefaultState() {
+  /* ==========================================================
+     GENERAL HELPERS
+     ========================================================== */
+
+  function isObject(value) {
+    return Boolean(
+      value &&
+      typeof value === "object" &&
+      !Array.isArray(value)
+    );
+  }
+
+  function cloneValue(value) {
+    if (
+      value === null ||
+      value === undefined
+    ) {
+      return value;
+    }
+
+    try {
+      return JSON.parse(
+        JSON.stringify(value)
+      );
+    } catch (error) {
+      return value;
+    }
+  }
+
+  function firstDefined(
+    values,
+    fallback = null
+  ) {
+    for (const value of values) {
+      if (
+        value !== null &&
+        value !== undefined &&
+        value !== ""
+      ) {
+        return value;
+      }
+    }
+
+    return fallback;
+  }
+
+  function toFiniteNumber(
+    value,
+    fallback = null
+  ) {
+    if (
+      value === null ||
+      value === undefined ||
+      value === ""
+    ) {
+      return fallback;
+    }
+
+    const number =
+      Number(value);
+
+    return Number.isFinite(number)
+      ? number
+      : fallback;
+  }
+
+  function normaliseText(value) {
+    return String(
+      value ?? ""
+    ).trim();
+  }
+
+  /* ==========================================================
+     PLAYER STATE
+     ========================================================== */
+
+  function createDefaultPlayerState() {
     return {
       activeChest: "gold",
 
@@ -52,15 +134,15 @@
     };
   }
 
-  function loadState() {
+  function loadPlayerState() {
     const defaults =
-      createDefaultState();
+      createDefaultPlayerState();
 
     try {
       const saved =
         JSON.parse(
           localStorage.getItem(
-            STORAGE_KEY
+            PLAYER_STORAGE_KEY
           ) || "{}"
         );
 
@@ -69,7 +151,7 @@
           saved.activeChest
         )
           ? saved.activeChest
-          : "gold";
+          : defaults.activeChest;
 
       const observations = {};
 
@@ -89,14 +171,12 @@
       );
 
       return {
-        ...defaults,
-        ...saved,
         activeChest,
         observations
       };
     } catch (error) {
       console.warn(
-        "[Chest Companion] Could not restore live predictor state.",
+        "[Chest Companion] Could not restore predictor progress.",
         error
       );
 
@@ -104,33 +184,141 @@
     }
   }
 
-  function saveState() {
+  function savePlayerState() {
     try {
       localStorage.setItem(
-        STORAGE_KEY,
+        PLAYER_STORAGE_KEY,
         JSON.stringify(state)
       );
     } catch (error) {
       console.warn(
-        "[Chest Companion] Could not save live predictor state.",
+        "[Chest Companion] Could not save predictor progress.",
         error
       );
     }
   }
 
-  /* ----------------------------------------------------------
+  /* ==========================================================
+     PUBLISHED EVENT CACHE
+     ========================================================== */
+
+  function loadCachedPublishedEvent() {
+    try {
+      const saved =
+        JSON.parse(
+          localStorage.getItem(
+            EVENT_CACHE_KEY
+          ) || "null"
+        );
+
+      return isObject(saved)
+        ? saved
+        : null;
+    } catch (error) {
+      console.warn(
+        "[Chest Companion] Could not restore cached event data.",
+        error
+      );
+
+      return null;
+    }
+  }
+
+  function saveCachedPublishedEvent(
+    eventData,
+    sourceFile = null
+  ) {
+    cachedPublishedEvent = {
+      data:
+        cloneValue(eventData),
+
+      sourceFile:
+        cloneValue(sourceFile),
+
+      cachedAt:
+        new Date()
+          .toISOString()
+    };
+
+    try {
+      localStorage.setItem(
+        EVENT_CACHE_KEY,
+        JSON.stringify(
+          cachedPublishedEvent
+        )
+      );
+    } catch (error) {
+      console.warn(
+        "[Chest Companion] Could not cache the published event.",
+        error
+      );
+    }
+  }
+
+  function clearCachedPublishedEvent() {
+    cachedPublishedEvent = null;
+
+    try {
+      localStorage.removeItem(
+        EVENT_CACHE_KEY
+      );
+    } catch (error) {
+      console.warn(
+        "[Chest Companion] Could not clear cached event data.",
+        error
+      );
+    }
+  }
+
+  /* ==========================================================
      EVENT DATA
-     ---------------------------------------------------------- */
+     ========================================================== */
 
   function getEventData() {
-    const data =
+    const liveData =
       window.currentEventData;
 
+    if (
+      liveData &&
+      typeof liveData === "object"
+    ) {
+      return liveData;
+    }
+
+    const publishedData =
+      window.ChestCompanionPublishedEvent;
+
+    if (
+      publishedData &&
+      typeof publishedData === "object"
+    ) {
+      return (
+        publishedData.data ||
+        publishedData.eventData ||
+        publishedData
+      );
+    }
+
+    if (
+      cachedPublishedEvent?.data &&
+      typeof cachedPublishedEvent.data ===
+        "object"
+    ) {
+      return cachedPublishedEvent.data;
+    }
+
+    return null;
+  }
+
+  function getSourceFile() {
     return (
-      data &&
-      typeof data === "object"
-        ? data
-        : null
+      window.currentEventSourceFile ||
+      window
+        .ChestCompanionPublishedEvent
+        ?.sourceFile ||
+      cachedPublishedEvent
+        ?.sourceFile ||
+      null
     );
   }
 
@@ -139,8 +327,11 @@
       getEventData();
 
     return Boolean(
-      eventData?.ready &&
-      eventData?.chests
+      eventData &&
+      typeof eventData === "object" &&
+      eventData.chests &&
+      typeof eventData.chests ===
+        "object"
     );
   }
 
@@ -149,11 +340,17 @@
       getEventData();
 
     const possibleName =
-      eventData?.event?.name ||
-      eventData?.event?.title ||
-      eventData?.eventName ||
-      eventData?.name ||
-      eventData?.event;
+      firstDefined([
+        eventData?.event?.name,
+        eventData?.event?.title,
+        eventData?.eventName,
+        eventData?.title,
+        eventData?.name,
+        typeof eventData?.event ===
+          "string"
+          ? eventData.event
+          : null
+      ]);
 
     if (
       typeof possibleName ===
@@ -164,12 +361,15 @@
     }
 
     const sourceFile =
-      window.currentEventSourceFile;
+      getSourceFile();
 
     const sourceName =
       typeof sourceFile === "string"
         ? sourceFile
-        : sourceFile?.name;
+        : firstDefined([
+            sourceFile?.name,
+            sourceFile?.fileName
+          ]);
 
     if (
       typeof sourceName ===
@@ -178,38 +378,149 @@
     ) {
       return sourceName
         .replace(
-          /\.(txt|json)$/i,
+          /\.(txt|json|csv)$/i,
           ""
         )
         .trim();
     }
 
-    return "Unknown Event";
+    return "Current Event";
   }
 
   function getImportedAt() {
     const eventData =
       getEventData();
 
-    return (
-      eventData?.importedAt ||
-      window.currentEventSourceFile
-        ?.importedAt ||
-      null
-    );
+    return firstDefined([
+      eventData?.importedAt,
+      eventData?.publishedAt,
+      getSourceFile()?.importedAt,
+      cachedPublishedEvent?.cachedAt
+    ]);
   }
 
-  /* ----------------------------------------------------------
+  /* ==========================================================
+     ADMIN-READY EVENT PUBLISHING
+
+     This stores the event locally for now.
+
+     Later, event-import.js can send the same event object to
+     Supabase, and each player's app can place the downloaded
+     event into window.ChestCompanionPublishedEvent.
+     ========================================================== */
+
+  function publishEventData(
+    eventData,
+    sourceFile = null
+  ) {
+    if (
+      !eventData ||
+      typeof eventData !== "object"
+    ) {
+      throw new TypeError(
+        "Published event data must be an object."
+      );
+    }
+
+    if (
+      !eventData.chests ||
+      typeof eventData.chests !==
+        "object"
+    ) {
+      throw new Error(
+        "Published event data does not contain chest decks."
+      );
+    }
+
+    const publishedAt =
+      new Date().toISOString();
+
+    const publishedData = {
+      ...cloneValue(eventData),
+
+      ready: true,
+
+      publishedAt:
+        eventData.publishedAt ||
+        publishedAt
+    };
+
+    window.currentEventData =
+      publishedData;
+
+    window.currentEventSourceFile =
+      sourceFile;
+
+    window.ChestCompanionPublishedEvent = {
+      data:
+        publishedData,
+
+      sourceFile:
+        cloneValue(sourceFile),
+
+      publishedAt
+    };
+
+    saveCachedPublishedEvent(
+      publishedData,
+      sourceFile
+    );
+
+    window.dispatchEvent(
+      new CustomEvent(
+        "chest-companion:event-published",
+        {
+          detail: {
+            eventData:
+              publishedData,
+
+            sourceFile,
+
+            publishedAt
+          }
+        }
+      )
+    );
+
+    refresh();
+
+    return publishedData;
+  }
+
+  function clearPublishedEventData() {
+    window.currentEventData =
+      null;
+
+    window.currentEventSourceFile =
+      null;
+
+    window.ChestCompanionPublishedEvent =
+      null;
+
+    clearCachedPublishedEvent();
+
+    window.dispatchEvent(
+      new CustomEvent(
+        "chest-companion:event-cleared"
+      )
+    );
+
+    refresh();
+
+    return true;
+  }
+
+  /* ==========================================================
      CHEST HELPERS
-     ---------------------------------------------------------- */
+     ========================================================== */
 
   function isSupportedChest(
     chestType
   ) {
     return SUPPORTED_CHESTS.includes(
-      String(chestType || "")
-        .trim()
-        .toLowerCase()
+      normaliseText(
+        chestType
+      ).toLowerCase()
     );
   }
 
@@ -217,13 +528,11 @@
     chestType
   ) {
     const value =
-      String(
+      normaliseText(
         chestType ||
         state.activeChest ||
         "gold"
-      )
-        .trim()
-        .toLowerCase();
+      ).toLowerCase();
 
     return isSupportedChest(value)
       ? value
@@ -241,7 +550,7 @@
     state.activeChest =
       normalised;
 
-    saveState();
+    savePlayerState();
 
     window.dispatchEvent(
       new CustomEvent(
@@ -286,15 +595,27 @@
     const eventData =
       getEventData();
 
-    if (!eventData?.chests) {
+    if (
+      !eventData?.chests ||
+      typeof eventData.chests !==
+        "object"
+    ) {
       return null;
     }
 
+    const normalised =
+      normaliseChestType(
+        chestType
+      );
+
     return (
       eventData.chests[
-        normaliseChestType(
-          chestType
-        )
+        normalised
+      ] ||
+      eventData.chests[
+        CHEST_LABELS[
+          normalised
+        ]
       ] ||
       null
     );
@@ -303,15 +624,13 @@
   function findDeckArray(
     chestData
   ) {
-    if (Array.isArray(chestData)) {
+    if (
+      Array.isArray(chestData)
+    ) {
       return chestData;
     }
 
-    if (
-      !chestData ||
-      typeof chestData !==
-        "object"
-    ) {
+    if (!isObject(chestData)) {
       return [];
     }
 
@@ -321,6 +640,8 @@
       chestData.values,
       chestData.rewards,
       chestData.entries,
+      chestData.items,
+      chestData.results,
       chestData.data
     ];
 
@@ -361,18 +682,16 @@
       return deck.length;
     }
 
-    const possibleLength =
-      Number(
-        chestData?.deckLength ??
-        chestData?.length ??
+    return (
+      toFiniteNumber(
+        firstDefined([
+          chestData?.deckLength,
+          chestData?.length,
+          chestData?.count
+        ]),
         0
-      );
-
-    return Number.isFinite(
-      possibleLength
-    )
-      ? possibleLength
-      : 0;
+      ) || 0
+    );
   }
 
   function getFoundIndex(
@@ -388,18 +707,14 @@
       return null;
     }
 
-    const possibleIndex =
-      chestData.foundIndex ??
-      chestData.sourceIndex ??
-      chestData.index ??
-      null;
-
-    const number =
-      Number(possibleIndex);
-
-    return Number.isFinite(number)
-      ? number
-      : null;
+    return toFiniteNumber(
+      firstDefined([
+        chestData.foundIndex,
+        chestData.sourceIndex,
+        chestData.index
+      ]),
+      null
+    );
   }
 
   function hasChestDeck(
@@ -413,13 +728,363 @@
     );
   }
 
-  /* ----------------------------------------------------------
-     VALUE HELPERS
-     ---------------------------------------------------------- */
+  /* ==========================================================
+     REWARD NORMALISATION
+     ========================================================== */
+
+  function extractRewardObject(
+    entry
+  ) {
+    if (!isObject(entry)) {
+      return entry;
+    }
+
+    const nestedCandidates = [
+      entry.reward,
+      entry.item,
+      entry.prize,
+      entry.drop,
+      entry.result,
+      entry.contents,
+      entry.rewardData,
+      entry.reward_data
+    ];
+
+    return (
+      nestedCandidates.find(
+        candidate =>
+          candidate !== null &&
+          candidate !== undefined
+      ) ||
+      entry
+    );
+  }
+
+  function getRewardName(
+    entry,
+    index = 0
+  ) {
+    const reward =
+      extractRewardObject(
+        entry
+      );
+
+    if (
+      typeof reward === "string"
+    ) {
+      return reward;
+    }
+
+    if (
+      typeof reward === "number" ||
+      typeof reward === "boolean"
+    ) {
+      return String(reward);
+    }
+
+    if (!isObject(reward)) {
+      return `Reward ${index + 1}`;
+    }
+
+    const name =
+      firstDefined([
+        reward.name,
+        reward.label,
+        reward.rewardName,
+        reward.reward_name,
+        reward.displayName,
+        reward.display_name,
+        reward.title,
+        reward.description,
+        reward.resourceName,
+        reward.resource_name,
+        reward.itemName,
+        reward.item_name,
+        reward.typeName,
+        reward.type_name,
+        reward.code,
+        reward.id
+      ]);
+
+    return normaliseText(
+      name ||
+      `Reward ${index + 1}`
+    );
+  }
+
+  function getRewardCode(entry) {
+    const reward =
+      extractRewardObject(
+        entry
+      );
+
+    if (!isObject(reward)) {
+      return "";
+    }
+
+    return normaliseText(
+      firstDefined([
+        reward.code,
+        reward.rewardCode,
+        reward.reward_code,
+        reward.key,
+        reward.rewardId,
+        reward.reward_id,
+        reward.typeId,
+        reward.type_id,
+        reward.id
+      ], "")
+    );
+  }
+
+  function getRewardAmount(entry) {
+    const reward =
+      extractRewardObject(
+        entry
+      );
+
+    const amount =
+      firstDefined([
+        isObject(entry)
+          ? entry.amount
+          : null,
+
+        isObject(entry)
+          ? entry.quantity
+          : null,
+
+        isObject(entry)
+          ? entry.value
+          : null,
+
+        isObject(entry)
+          ? entry.count
+          : null,
+
+        isObject(reward)
+          ? reward.amount
+          : null,
+
+        isObject(reward)
+          ? reward.quantity
+          : null,
+
+        isObject(reward)
+          ? reward.value
+          : null,
+
+        isObject(reward)
+          ? reward.count
+          : null,
+
+        isObject(reward)
+          ? reward.qty
+          : null,
+
+        isObject(reward)
+          ? reward.rewardAmount
+          : null,
+
+        isObject(reward)
+          ? reward.reward_amount
+          : null
+      ]);
+
+    return toFiniteNumber(
+      amount,
+      null
+    );
+  }
+
+  function getMatchValue(entry) {
+    if (isObject(entry)) {
+      const explicitValue =
+        firstDefined([
+          entry.matchValue,
+          entry.match_value,
+          entry.deckValue,
+          entry.deck_value,
+          entry.rawValue,
+          entry.raw_value,
+          entry.sequenceValue,
+          entry.sequence_value,
+          entry.value,
+          entry.id
+        ]);
+
+      if (
+        explicitValue !== null &&
+        explicitValue !== undefined
+      ) {
+        return cloneValue(
+          explicitValue
+        );
+      }
+    }
+
+    return cloneValue(entry);
+  }
+
+  function normaliseDeckEntry(
+    entry,
+    index
+  ) {
+    const name =
+      getRewardName(
+        entry,
+        index
+      );
+
+    const code =
+      getRewardCode(
+        entry
+      );
+
+    const amount =
+      getRewardAmount(
+        entry
+      );
+
+    const matchValue =
+      getMatchValue(
+        entry
+      );
+
+    return {
+      key: [
+        code,
+        name,
+        amount ?? "",
+        serialiseValue(
+          matchValue
+        )
+      ].join("::"),
+
+      index,
+
+      position:
+        index + 1,
+
+      name,
+
+      label:
+        name,
+
+      code,
+
+      amount,
+
+      value:
+        matchValue,
+
+      matchValue,
+
+      raw:
+        cloneValue(entry)
+    };
+  }
+
+  function getNormalisedDeck(
+    chestType =
+      state.activeChest
+  ) {
+    return getDeck(
+      chestType
+    ).map(
+      normaliseDeckEntry
+    );
+  }
+
+  function getRewards(
+    chestType =
+      state.activeChest
+  ) {
+    const deck =
+      getNormalisedDeck(
+        chestType
+      );
+
+    const rewards =
+      new Map();
+
+    deck.forEach(entry => {
+      const catalogueKey = [
+        entry.code,
+        entry.name,
+        entry.amount ?? "",
+        serialiseValue(
+          entry.matchValue
+        )
+      ].join("::");
+
+      if (
+        !rewards.has(
+          catalogueKey
+        )
+      ) {
+        rewards.set(
+          catalogueKey,
+          {
+            key:
+              catalogueKey,
+
+            name:
+              entry.name,
+
+            label:
+              entry.name,
+
+            code:
+              entry.code,
+
+            amount:
+              entry.amount,
+
+            value:
+              cloneValue(
+                entry.matchValue
+              ),
+
+            matchValue:
+              cloneValue(
+                entry.matchValue
+              ),
+
+            raw:
+              cloneValue(
+                entry.raw
+              )
+          }
+        );
+      }
+    });
+
+    return Array.from(
+      rewards.values()
+    ).sort(
+      (first, second) =>
+        first.name.localeCompare(
+          second.name,
+          undefined,
+          {
+            numeric: true,
+            sensitivity: "base"
+          }
+        )
+    );
+  }
+
+  /* ==========================================================
+     VALUE COMPARISON
+     ========================================================== */
 
   function serialiseValue(value) {
     if (value === undefined) {
       return "__undefined__";
+    }
+
+    if (value === null) {
+      return "null";
     }
 
     if (typeof value === "string") {
@@ -432,10 +1097,6 @@
 
     if (typeof value === "boolean") {
       return `boolean:${value}`;
-    }
-
-    if (value === null) {
-      return "null";
     }
 
     try {
@@ -453,8 +1114,12 @@
     second
   ) {
     return (
-      serialiseValue(first) ===
-      serialiseValue(second)
+      serialiseValue(
+        getMatchValue(first)
+      ) ===
+      serialiseValue(
+        getMatchValue(second)
+      )
     );
   }
 
@@ -475,10 +1140,29 @@
       return String(value);
     }
 
-    try {
-      return JSON.stringify(
+    const name =
+      getRewardName(
         value
       );
+
+    const amount =
+      getRewardAmount(
+        value
+      );
+
+    if (
+      name &&
+      !name.startsWith(
+        "Reward "
+      )
+    ) {
+      return amount === null
+        ? name
+        : `${name} — ${amount}`;
+    }
+
+    try {
+      return JSON.stringify(value);
     } catch (error) {
       return String(value);
     }
@@ -488,29 +1172,14 @@
     chestType =
       state.activeChest
   ) {
-    const deck =
-      getDeck(chestType);
-
-    const unique =
-      new Map();
-
-    deck.forEach(value => {
-      const key =
-        serialiseValue(value);
-
-      if (!unique.has(key)) {
-        unique.set(key, value);
-      }
-    });
-
-    return Array.from(
-      unique.values()
+    return getRewards(
+      chestType
     );
   }
 
-  /* ----------------------------------------------------------
-     OBSERVATION TRACKING
-     ---------------------------------------------------------- */
+  /* ==========================================================
+     OBSERVATIONS
+     ========================================================== */
 
   function getObservations(
     chestType =
@@ -521,11 +1190,176 @@
         chestType
       );
 
-    return [
-      ...(state.observations[
+    return cloneValue(
+      state.observations[
         normalised
-      ] || [])
-    ];
+      ] || []
+    );
+  }
+
+  function createObservation(
+    reward,
+    chestType,
+    quantity = 1
+  ) {
+    const normalisedChest =
+      normaliseChestType(
+        chestType
+      );
+
+    const normalisedReward =
+      normaliseDeckEntry(
+        reward,
+        0
+      );
+
+    return {
+      number:
+        (
+          state.observations[
+            normalisedChest
+          ]?.length || 0
+        ) + 1,
+
+      chestType:
+        normalisedChest,
+
+      name:
+        normalisedReward.name,
+
+      label:
+        normalisedReward.name,
+
+      code:
+        normalisedReward.code,
+
+      amount:
+        normalisedReward.amount,
+
+      quantity,
+
+      chestCount:
+        quantity,
+
+      chestsOpened:
+        quantity,
+
+      value:
+        cloneValue(
+          normalisedReward.matchValue
+        ),
+
+      matchValue:
+        cloneValue(
+          normalisedReward.matchValue
+        ),
+
+      reward:
+        cloneValue(
+          normalisedReward.raw
+        ),
+
+      raw:
+        cloneValue(
+          normalisedReward.raw
+        ),
+
+      displayValue:
+        formatDeckValue(
+          reward
+        ),
+
+      recordedAt:
+        new Date()
+          .toISOString()
+    };
+  }
+
+  function recordReward(
+    chestType,
+    payload
+  ) {
+    let resolvedChestType =
+      chestType;
+
+    let resolvedPayload =
+      payload;
+
+    if (
+      isObject(chestType) &&
+      payload === undefined
+    ) {
+      resolvedPayload =
+        chestType;
+
+      resolvedChestType =
+        chestType.chestType ||
+        state.activeChest;
+    }
+
+    const normalisedChest =
+      normaliseChestType(
+        resolvedChestType
+      );
+
+    if (!resolvedPayload) {
+      throw new Error(
+        "No reward was supplied."
+      );
+    }
+
+    const reward =
+      resolvedPayload.reward ??
+      resolvedPayload.raw ??
+      resolvedPayload.value ??
+      resolvedPayload;
+
+    const quantity =
+      Math.max(
+        1,
+        Math.floor(
+          toFiniteNumber(
+            resolvedPayload.quantity ??
+            resolvedPayload.chestCount ??
+            resolvedPayload.chestsOpened,
+            1
+          )
+        )
+      );
+
+    const added = [];
+
+    for (
+      let index = 0;
+      index < quantity;
+      index += 1
+    ) {
+      const observation =
+        createObservation(
+          reward,
+          normalisedChest,
+          1
+        );
+
+      state.observations[
+        normalisedChest
+      ].push(
+        observation
+      );
+
+      added.push(
+        cloneValue(
+          observation
+        )
+      );
+    }
+
+    savePlayerState();
+    refresh();
+
+    return quantity === 1
+      ? added[0]
+      : added;
   }
 
   function recordObservation(
@@ -533,42 +1367,42 @@
     chestType =
       state.activeChest
   ) {
-    const normalised =
-      normaliseChestType(
+    if (
+      isSupportedChest(value) &&
+      chestType &&
+      typeof chestType === "object"
+    ) {
+      return recordReward(
+        value,
         chestType
       );
+    }
 
-    const observation = {
-      number:
-        (
-          state.observations[
-            normalised
-          ]?.length || 0
-        ) + 1,
+    if (
+      isObject(value) &&
+      (
+        value.chestType ||
+        value.quantity ||
+        value.reward ||
+        value.chestCount
+      )
+    ) {
+      return recordReward(
+        value.chestType ||
+        chestType,
+        value
+      );
+    }
 
-      value,
+    return recordReward(
+      chestType,
+      {
+        reward:
+          value,
 
-      displayValue:
-        formatDeckValue(
-          value
-        ),
-
-      recordedAt:
-        new Date()
-          .toISOString()
-    };
-
-    state.observations[
-      normalised
-    ].push(
-      observation
+        quantity: 1
+      }
     );
-
-    saveState();
-
-    refresh();
-
-    return observation;
   }
 
   function undoObservation(
@@ -585,10 +1419,12 @@
         normalised
       ].pop() || null;
 
-    saveState();
+    savePlayerState();
     refresh();
 
-    return removed;
+    return cloneValue(
+      removed
+    );
   }
 
   function removeObservation(
@@ -627,16 +1463,21 @@
       )[0];
 
     observations.forEach(
-      (observation, position) => {
+      (
+        observation,
+        position
+      ) => {
         observation.number =
           position + 1;
       }
     );
 
-    saveState();
+    savePlayerState();
     refresh();
 
-    return removed;
+    return cloneValue(
+      removed
+    );
   }
 
   function resetObservations(
@@ -652,22 +1493,50 @@
       normalised
     ] = [];
 
-    saveState();
+    savePlayerState();
     refresh();
 
     return true;
   }
 
-  /* ----------------------------------------------------------
+  /* Compatibility aliases */
+
+  function undoLastReward(
+    chestType
+  ) {
+    return undoObservation(
+      chestType
+    );
+  }
+
+  function resetHistory(
+    chestType
+  ) {
+    return resetObservations(
+      chestType
+    );
+  }
+
+  function clearHistory(
+    chestType
+  ) {
+    return resetObservations(
+      chestType
+    );
+  }
+
+  /* ==========================================================
      POSITION SOLVER
-     ---------------------------------------------------------- */
+     ========================================================== */
 
   function findCandidateStarts(
     chestType =
       state.activeChest
   ) {
     const deck =
-      getDeck(chestType);
+      getNormalisedDeck(
+        chestType
+      );
 
     const observations =
       getObservations(
@@ -705,7 +1574,13 @@
 
         if (
           !valuesMatch(
-            deck[deckIndex],
+            deck[
+              deckIndex
+            ].matchValue,
+
+            observations[
+              offset
+            ].matchValue ??
             observations[
               offset
             ].value
@@ -777,7 +1652,9 @@
       );
 
     const deck =
-      getDeck(normalised);
+      getNormalisedDeck(
+        normalised
+      );
 
     const observations =
       getObservations(
@@ -789,12 +1666,20 @@
         available: false,
         matched: false,
         solved: false,
+
         chestType:
           normalised,
+
         message:
           "The selected live deck is unavailable.",
+
         candidates: [],
         currentPositions: [],
+
+        candidateCount: null,
+        currentIndex: null,
+        currentPosition: null,
+        nextIndex: null,
         confidence: 0
       };
     }
@@ -804,12 +1689,20 @@
         available: true,
         matched: false,
         solved: false,
+
         chestType:
           normalised,
+
         message:
-          "Record the first chest value to begin.",
+          "Record the first chest reward to begin.",
+
         candidates: [],
         currentPositions: [],
+
+        candidateCount: null,
+        currentIndex: null,
+        currentPosition: null,
+        nextIndex: null,
         confidence: 0
       };
     }
@@ -824,12 +1717,20 @@
         available: true,
         matched: false,
         solved: false,
+
         chestType:
           normalised,
+
         message:
-          "The recorded values do not match this live deck.",
+          "The recorded rewards do not match this live deck.",
+
         candidates: [],
         currentPositions: [],
+
+        candidateCount: 0,
+        currentIndex: null,
+        currentPosition: null,
+        nextIndex: null,
         confidence: 0
       };
     }
@@ -847,6 +1748,11 @@
 
     const solved =
       candidateStarts.length === 1;
+
+    const currentIndex =
+      solved
+        ? currentPositions[0]
+        : null;
 
     return {
       available: true,
@@ -867,24 +1773,20 @@
 
       currentPositions,
 
-      currentIndex:
-        solved
-          ? currentPositions[0]
-          : null,
+      currentIndex,
 
       currentPosition:
-        solved
-          ? currentPositions[0] + 1
-          : null,
+        currentIndex === null
+          ? null
+          : currentIndex + 1,
 
       nextIndex:
-        solved
-          ? (
-              currentPositions[0] +
-              1
+        currentIndex === null
+          ? null
+          : (
+              currentIndex + 1
             ) %
-            deck.length
-          : null,
+            deck.length,
 
       confidence:
         calculateConfidence(
@@ -897,7 +1799,7 @@
         solved
           ? (
               `Sequence located at position ` +
-              `${currentPositions[0] + 1}.`
+              `${currentIndex + 1}.`
             )
           : (
               `${candidateStarts.length} possible ` +
@@ -906,12 +1808,12 @@
     };
   }
 
-  /* ----------------------------------------------------------
-     UPCOMING VALUES
-     ---------------------------------------------------------- */
+  /* ==========================================================
+     PREDICTIONS
+     ========================================================== */
 
   function predictUpcoming(
-    count = 5,
+    count = 20,
     chestType =
       state.activeChest
   ) {
@@ -921,7 +1823,9 @@
       );
 
     const deck =
-      getDeck(normalised);
+      getNormalisedDeck(
+        normalised
+      );
 
     const solution =
       solvePosition(
@@ -930,6 +1834,7 @@
 
     if (
       !solution.solved ||
+      solution.currentIndex === null ||
       !deck.length
     ) {
       return [];
@@ -939,7 +1844,7 @@
       Math.max(
         1,
         Math.min(
-          Number(count) || 5,
+          Number(count) || 20,
           25
         )
       );
@@ -958,6 +1863,9 @@
         ) %
         deck.length;
 
+      const reward =
+        deck[index];
+
       upcoming.push({
         number:
           offset,
@@ -967,22 +1875,54 @@
         position:
           index + 1,
 
+        name:
+          reward.name,
+
+        label:
+          reward.name,
+
+        code:
+          reward.code,
+
+        amount:
+          reward.amount,
+
         value:
-          deck[index],
+          cloneValue(
+            reward.matchValue
+          ),
+
+        matchValue:
+          cloneValue(
+            reward.matchValue
+          ),
+
+        reward:
+          cloneValue(
+            reward.raw
+          ),
+
+        raw:
+          cloneValue(
+            reward.raw
+          ),
 
         displayValue:
-          formatDeckValue(
-            deck[index]
-          )
+          reward.amount === null
+            ? reward.name
+            : (
+                `${reward.name} — ` +
+                `${reward.amount}`
+              )
       });
     }
 
     return upcoming;
   }
 
-  /* ----------------------------------------------------------
+  /* ==========================================================
      STATUS
-     ---------------------------------------------------------- */
+     ========================================================== */
 
   function getChestStatus(
     chestType
@@ -994,6 +1934,27 @@
 
     const solution =
       solvePosition(
+        normalised
+      );
+
+    const observations =
+      getObservations(
+        normalised
+      );
+
+    const predictions =
+      predictUpcoming(
+        20,
+        normalised
+      );
+
+    const rewards =
+      getRewards(
+        normalised
+      );
+
+    const deck =
+      getDeck(
         normalised
       );
 
@@ -1021,30 +1982,77 @@
           normalised
         ),
 
+      deck,
+
+      rewards,
+
+      entries:
+        rewards,
+
+      observations,
+
+      recordedRewards:
+        observations,
+
+      history:
+        observations,
+
       observationCount:
-        getObservations(
-          normalised
-        ).length,
+        observations.length,
 
       solved:
-        solution.solved,
+        Boolean(
+          solution.solved
+        ),
 
       playerPosition:
         solution.currentPosition,
 
+      solvedPosition:
+        solution.currentPosition,
+
+      currentPosition:
+        solution.currentPosition,
+
       candidateCount:
-        solution.candidateCount ||
-        0,
+        solution.candidateCount,
+
+      matchCount:
+        solution.candidateCount,
+
+      matchingPositions:
+        solution.candidateCount,
+
+      matches:
+        solution.candidates,
 
       confidence:
-        solution.confidence ||
-        0
+        solution.confidence,
+
+      solverConfidence:
+        solution.confidence,
+
+      predictions,
+
+      upcomingRewards:
+        predictions,
+
+      nextRewards:
+        predictions,
+
+      solverMessage:
+        solution.message
     };
   }
 
   function getStatus() {
     const eventData =
       getEventData();
+
+    const chests =
+      SUPPORTED_CHESTS.map(
+        getChestStatus
+      );
 
     return {
       ready:
@@ -1057,8 +2065,7 @@
         getImportedAt(),
 
       sourceFile:
-        window.currentEventSourceFile ||
-        null,
+        getSourceFile(),
 
       activeChest:
         getActiveChest(),
@@ -1068,14 +2075,12 @@
 
       readyChestCount:
         eventData?.readyChestCount ??
-        SUPPORTED_CHESTS.filter(
-          hasChestDeck
+        chests.filter(
+          chest =>
+            chest.loaded
         ).length,
 
-      chests:
-        SUPPORTED_CHESTS.map(
-          getChestStatus
-        )
+      chests
     };
   }
 
@@ -1095,14 +2100,44 @@
     return status;
   }
 
+  /* ==========================================================
+     EVENT LISTENERS
+     ========================================================== */
+
   window.addEventListener(
     "noir:event-imported",
+    event => {
+      const eventData =
+        event?.detail?.eventData ||
+        window.currentEventData;
+
+      const sourceFile =
+        event?.detail?.sourceFile ||
+        window.currentEventSourceFile ||
+        null;
+
+      if (
+        eventData &&
+        typeof eventData === "object"
+      ) {
+        saveCachedPublishedEvent(
+          eventData,
+          sourceFile
+        );
+      }
+
+      refresh();
+    }
+  );
+
+  window.addEventListener(
+    "chest-companion:event-published",
     refresh
   );
 
-  /* ----------------------------------------------------------
+  /* ==========================================================
      PUBLIC API
-     ---------------------------------------------------------- */
+     ========================================================== */
 
   window.LivePredictorEngine =
     Object.freeze({
@@ -1118,14 +2153,21 @@
       getEventData,
       getEventName,
       getImportedAt,
+      getSourceFile,
+
+      publishEventData,
+      clearPublishedEventData,
 
       isSupportedChest,
+      normaliseChestType,
       setActiveChest,
       getActiveChest,
       getChestLabel,
 
       getChestData,
       getDeck,
+      getNormalisedDeck,
+      getRewards,
       getDeckLength,
       getFoundIndex,
       getChestStatus,
@@ -1137,10 +2179,18 @@
       getUniqueDeckValues,
 
       getObservations,
+
+      recordReward,
       recordObservation,
+
       undoObservation,
+      undoLastReward,
+
       removeObservation,
+
       resetObservations,
+      resetHistory,
+      clearHistory,
 
       findCandidateStarts,
       solvePosition,
@@ -1148,7 +2198,7 @@
     });
 
   console.info(
-    "[Chest Companion] Live Predictor Engine with solver ready.",
+    "[Chest Companion] Live Predictor Engine ready.",
     getStatus()
   );
 })(window);
