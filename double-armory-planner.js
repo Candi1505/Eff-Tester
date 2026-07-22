@@ -153,13 +153,19 @@
 
     for (let offset = 0; offset < count; offset += 1) {
       const mainIndex = (start + offset) % mainDeck.length;
-      const reward = resolve(mainKey, mainDeck[mainIndex], side, cursors) || {
-        name: "Reward unavailable",
-        code: "",
-        amount: null,
-        rarity: "Unknown",
-        score: 0
-      };
+      let reward = null;
+      try {
+        reward = resolve(mainKey, mainDeck[mainIndex], side, cursors);
+      } catch (error) {
+        console.warn("[Double Armory] One reward could not be resolved.", error);
+      }
+      reward ||= {
+          name: "Reward unavailable",
+          code: "",
+          amount: null,
+          rarity: "Unknown",
+          score: 0
+        };
       rows.push({
         number: offset + 1,
         deckPosition: mainIndex + 1,
@@ -212,7 +218,7 @@
     document.head.appendChild(style);
   }
 
-  function rewardMarkup(reward) {
+  function rewardMarkup(reward = {}) {
     const rarity = String(reward.rarity || "unknown").toLowerCase();
     return `
       <div class="da-cell da-${escapeHTML(rarity)} ${reward.favourite ? "da-favourite" : ""} ${reward.bonusAfter ? "da-bonus" : ""}">
@@ -225,25 +231,26 @@
   }
 
   function open() {
-    const data = getData();
-    if (!data?.ready) {
-      window.alert("Double Armory data is not available in the published event yet.");
-      return;
-    }
-    ensureStyles();
-    document.getElementById(OVERLAY_ID)?.remove();
-    const available = getAvailableChestTypes(data);
-    if (!available.length) {
-      window.alert("Please republish the Double Armory event so all chest types can be prepared.");
-      return;
-    }
-    if (!available.includes(selectedChestType)) selectedChestType = available[0];
-    const assault = buildSequence(data.sides.assault, selectedChestType);
-    const breeding = buildSequence(data.sides.breeding, selectedChestType);
-    const chest = data.sides.assault?.chests?.[selectedChestType];
-    const overlay = document.createElement("div");
-    overlay.id = OVERLAY_ID;
-    overlay.innerHTML = `
+    try {
+      const data = getData();
+      if (!data?.ready) {
+        window.alert("Double Armory data is not available in the published event yet.");
+        return;
+      }
+      ensureStyles();
+      document.getElementById(OVERLAY_ID)?.remove();
+      const available = getAvailableChestTypes(data);
+      if (!available.length) {
+        window.alert("Please republish the Double Armory event so all chest types can be prepared.");
+        return;
+      }
+      if (!available.includes(selectedChestType)) selectedChestType = available[0];
+      const assault = buildSequence(data.sides.assault, selectedChestType);
+      const breeding = buildSequence(data.sides.breeding, selectedChestType);
+      const chest = data.sides.assault?.chests?.[selectedChestType];
+      const overlay = document.createElement("div");
+      overlay.id = OVERLAY_ID;
+      overlay.innerHTML = `
       <div class="da-shell">
         <header class="da-top">
           <div><p class="da-eyebrow">CHEST COMPANION</p><h1>Double Armory Planner</h1></div>
@@ -264,18 +271,23 @@
           `).join("")}
         </div>
       </div>`;
-    overlay.querySelector(".da-close")?.addEventListener("click", () => overlay.remove());
-    overlay.querySelectorAll(".da-tab").forEach(button => {
-      button.addEventListener("click", () => {
-        selectedChestType = button.dataset.chest;
-        overlay.remove();
-        open();
+      overlay.querySelector(".da-close")?.addEventListener("click", () => overlay.remove());
+      overlay.querySelectorAll(".da-tab").forEach(button => {
+        button.addEventListener("click", () => {
+          selectedChestType = button.dataset.chest;
+          overlay.remove();
+          open();
+        });
       });
-    });
-    document.body.appendChild(overlay);
+      document.body.appendChild(overlay);
+    } catch (error) {
+      console.error("[Double Armory] Planner could not open.", error);
+      window.alert(`The Double Armory planner could not open: ${error?.message || "unknown error"}`);
+    }
   }
 
   function installButton() {
+    ensureStyles();
     const data = getData();
     const eventCard = document.getElementById("lpEventName")?.closest(".lp-card");
     if (!eventCard) return;
