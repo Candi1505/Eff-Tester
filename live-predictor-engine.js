@@ -2346,24 +2346,55 @@ function resolveDeckReward(
     );
   }
 
-  function resetObservations(
-    chestType =
-      state.activeChest
+    function resetObservations(
+  chestType =
+    state.activeChest
+) {
+  const normalised =
+    normaliseChestType(
+      chestType
+    );
+
+  const removedImportIds =
+    new Set(
+      (
+        state.observations[
+          normalised
+        ] || []
+      )
+        .map(
+          observation =>
+            observation
+              ?.gachaImportId
+        )
+        .filter(Boolean)
+    );
+
+  state.observations[
+    normalised
+  ] = [];
+
+  if (
+    Array.isArray(
+      state.importedGachaIds
+    ) &&
+    removedImportIds.size
   ) {
-    const normalised =
-      normaliseChestType(
-        chestType
-      );
-
-    state.observations[
-      normalised
-    ] = [];
-
-    savePlayerState();
-    refresh();
-
-    return true;
+    state.importedGachaIds =
+      state.importedGachaIds
+        .filter(
+          importId =>
+            !removedImportIds.has(
+              importId
+            )
+        );
   }
+
+  savePlayerState();
+  refresh();
+
+  return true;
+}
 
   /* Compatibility aliases */
 
@@ -3682,7 +3713,41 @@ function importGachaHistory(
     "chest-companion:event-published",
     refresh
   );
+   
+  window.addEventListener(
+  "noir:gacha-imported",
+  event => {
+    const gachaData =
+      event?.detail?.gachaData ||
+      window.currentGachaData ||
+      null;
 
+    const sourceFile =
+      event?.detail?.sourceFile ||
+      window.currentEventSourceFile ||
+      null;
+
+    const gachaSummary =
+      importGachaHistory(
+        gachaData,
+        sourceFile
+      );
+
+    window.dispatchEvent(
+      new CustomEvent(
+        "chest-companion:gacha-history-imported",
+        {
+          detail: {
+            ...gachaSummary,
+            sourceFile
+          }
+        }
+      )
+    );
+
+    refresh();
+  }
+);
   /* ==========================================================
      PUBLIC API
      ========================================================== */
