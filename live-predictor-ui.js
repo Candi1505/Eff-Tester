@@ -4260,7 +4260,7 @@
     const visiblePredictions =
       predictions.slice(
         0,
-        40
+        100
       );
 
     container.innerHTML =
