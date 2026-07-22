@@ -53,7 +53,7 @@ window.ChestDatabase = {
     } = await supabaseClient
       .from("profiles")
       .select("*")
-      .eq("id", user.id)
+      .eq("user_id", user.id)
       .maybeSingle();
 
     if (profileError) {
@@ -209,7 +209,7 @@ window.ChestDatabase = {
       await supabaseClient
         .from("profiles")
         .select("*")
-        .eq("id", user.id)
+        .eq("user_id", user.id)
         .maybeSingle();
 
 
@@ -228,7 +228,7 @@ window.ChestDatabase = {
           last_active_at:
             new Date().toISOString()
         })
-        .eq("id", user.id);
+        .eq("user_id", user.id);
 
 
       return existingProfile;
@@ -238,7 +238,7 @@ window.ChestDatabase = {
 
     const newProfile = {
 
-      id: user.id,
+      user_id: user.id,
 
       nickname: "Tester",
 
@@ -365,7 +365,7 @@ window.ChestDatabase = {
       await supabaseClient
         .from("profiles")
         .update(profileUpdate)
-        .eq("id", userId)
+        .eq("user_id", userId)
         .select()
         .single();
 
@@ -563,7 +563,7 @@ async publishLiveEvent(
     new Date().toISOString();
 
   const version =
-    `${eventData.event || "event"}-${publishedAt}`;
+    Math.floor(Date.now() / 1000);
 
   const safeSource = sourceFile
     ? {
