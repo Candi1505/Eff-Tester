@@ -69,6 +69,25 @@ window.ChestDatabase = {
   },
 
   async signInAdmin(email, password) {
+    const access =
+      await this.signInMember(
+        email,
+        password
+      );
+
+    if (!access.isAdmin) {
+      await window.chestSupabase.auth
+        .signOut();
+
+      throw new Error(
+        "This account does not have Noir administrator access."
+      );
+    }
+
+    return access;
+  },
+
+  async signInMember(email, password) {
     const supabaseClient =
       window.chestSupabase;
 
@@ -91,18 +110,7 @@ window.ChestDatabase = {
       );
     }
 
-    const access =
-      await this.getCurrentAccess();
-
-    if (!access.isAdmin) {
-      await supabaseClient.auth.signOut();
-
-      throw new Error(
-        "This account does not have Noir administrator access."
-      );
-    }
-
-    return access;
+    return this.getCurrentAccess();
   },
 
   async signOutAdmin() {

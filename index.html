@@ -733,47 +733,65 @@
   <div class="section-heading">
 
     <div>
-      <p class="eyebrow">
-        LIVE EVENT DATA
+      <p id="eventAccessEyebrow" class="eyebrow">
+        CHEST COMPANION
       </p>
 
-      <h3>
-        Import Live Event Data
+      <h3 id="eventAccessTitle">
+        Member Sign In
       </h3>
     </div>
 
     <div id="eventImportBadge" class="status-badge">
-      Not imported
+      Secure
     </div>
 
   </div>
 
-  <p class="muted-text">
-    Upload the current live-event data. Chest Companion will detect
-    the Gold, Platinum, Draconic and Freedom decks and prepare the
-    chest rewards automatically.
+  <p id="eventAccessDescription" class="muted-text">
+    Sign in to access live chest predictions.
   </p>
 
   <div id="adminLoginPanel" class="profile-form">
-    <p class="eyebrow">ADMIN ACCESS</p>
+    <p class="eyebrow">MEMBER ACCESS</p>
     <input
       id="adminEmailInput"
       type="email"
       autocomplete="username"
-      placeholder="Admin email"
+      placeholder="Email"
     >
     <input
       id="adminPasswordInput"
       type="password"
       autocomplete="current-password"
-      placeholder="Admin password"
+      placeholder="Password"
     >
     <button
       id="adminSignInButton"
       class="button secondary-button full-width-button"
       type="button"
     >
-      Sign in as Admin
+      Sign in
+    </button>
+  </div>
+
+  <div id="playerSignedInPanel" class="hidden">
+    <p class="muted-text">
+      Live chest data is ready for your account.
+    </p>
+    <button
+      id="openPlayerPredictorButton"
+      class="button primary-button full-width-button"
+      type="button"
+    >
+      Open Live Predictor
+    </button>
+    <button
+      id="playerSignOutButton"
+      class="button secondary-button full-width-button"
+      type="button"
+    >
+      Sign out
     </button>
   </div>
 
@@ -1258,16 +1276,16 @@
   =========================================== -->
 
 <script src="supabase.js"></script>
-<script src="database.js?v=20260722-3"></script>
+<script src="database.js?v=20260722-4"></script>
 
-<script src="predictor-cloud.js?v=20260722-3"></script>
+<script src="predictor-cloud.js?v=20260722-4"></script>
 <script src="event-parser.js"></script>
 <script src="har-event-adapter.js"></script>
 <script src="js/har-gacha-parser.js"></script>
 <script src="event-import.js"></script>
-<script src="admin-event-publisher.js?v=20260722-3"></script>
-<script src="live-predictor-engine.js?v=20260722-3"></script>
-<script src="live-predictor-ui.js?v=20260722-3"></script>
+<script src="admin-event-publisher.js?v=20260722-4"></script>
+<script src="live-predictor-engine.js?v=20260722-4"></script>
+<script src="live-predictor-ui.js?v=20260722-4"></script>
 
 <script src="predictor-engine.js"></script>
 

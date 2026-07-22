@@ -36,6 +36,8 @@
       get("adminLoginPanel");
     const signedInPanel =
       get("adminSignedInPanel");
+    const playerPanel =
+      get("playerSignedInPanel");
     const controls =
       get("adminHarControls");
     const importButton =
@@ -43,7 +45,7 @@
 
     loginPanel?.classList.toggle(
       "hidden",
-      access.isAdmin
+      Boolean(access.user)
     );
     signedInPanel?.classList.toggle(
       "hidden",
@@ -53,6 +55,41 @@
       "hidden",
       !access.isAdmin
     );
+    playerPanel?.classList.toggle(
+      "hidden",
+      !access.user || access.isAdmin
+    );
+
+    const eyebrow = get("eventAccessEyebrow");
+    const title = get("eventAccessTitle");
+    const description =
+      get("eventAccessDescription");
+    const badge = get("eventImportBadge");
+
+    if (access.isAdmin) {
+      if (eyebrow) eyebrow.textContent =
+        "LIVE EVENT DATA";
+      if (title) title.textContent =
+        "Import Live Event Data";
+      if (description) description.textContent =
+        "Upload the current live-event data and publish the prepared chest rewards.";
+    } else if (access.user) {
+      if (eyebrow) eyebrow.textContent =
+        "CHEST COMPANION";
+      if (title) title.textContent =
+        "Live Predictor";
+      if (description) description.textContent =
+        "Your account is connected. Open the live predictor to track chest rewards.";
+      if (badge) badge.textContent = "Ready";
+    } else {
+      if (eyebrow) eyebrow.textContent =
+        "CHEST COMPANION";
+      if (title) title.textContent =
+        "Member Sign In";
+      if (description) description.textContent =
+        "Sign in to access live chest predictions.";
+      if (badge) badge.textContent = "Secure";
+    }
 
     if (importButton) {
       importButton.disabled =
@@ -110,7 +147,7 @@
 
     if (!email || !password) {
       window.alert(
-        "Enter the Noir administrator email and password."
+        "Enter your email and password."
       );
       return;
     }
@@ -121,7 +158,7 @@
     try {
       access =
         await window.ChestDatabase
-          .signInAdmin(email, password);
+          .signInMember(email, password);
 
       const passwordInput =
         get("adminPasswordInput");
@@ -134,12 +171,12 @@
     } catch (error) {
       window.alert(
         error?.message ||
-        "Administrator sign-in failed."
+        "Sign-in failed."
       );
     } finally {
       button.disabled = false;
       button.textContent =
-        "Sign in as Admin";
+        "Sign in";
     }
   }
 
@@ -183,7 +220,7 @@
 
     if (!currentAccess.isAdmin) {
       setStatus(
-        "The HAR was read on this device but was not published because administrator access was not confirmed.",
+        "The event data was prepared on this device but was not published because administrator access was not confirmed.",
         true
       );
       return;
@@ -241,7 +278,7 @@
       }
 
       setStatus(
-        "The HAR was imported locally, but cloud publishing failed.",
+        "The event data was prepared locally, but cloud publishing failed.",
         true
       );
     } finally {
@@ -263,6 +300,24 @@
       ?.addEventListener(
         "click",
         signOut
+      );
+
+    get("playerSignOutButton")
+      ?.addEventListener(
+        "click",
+        signOut
+      );
+
+    get("openPlayerPredictorButton")
+      ?.addEventListener(
+        "click",
+        () => {
+          window.LivePredictorUI?.open?.(
+            window.LivePredictorEngine
+              ?.getActiveChest?.() ||
+            "gold"
+          );
+        }
       );
 
     window.addEventListener(
