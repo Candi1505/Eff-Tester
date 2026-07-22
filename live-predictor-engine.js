@@ -124,6 +124,51 @@
     ).trim();
   }
 
+  const REWARD_DISPLAY_NAMES = {
+    blackPearl: "Black Pearls",
+    bloodstone: "Bloodstone",
+    breedingToken: "Breeding Tokens",
+    cosmicCharge: "Cosmic Charges",
+    electrumBar: "Electrum Bars",
+    elementalEmber: "Elemental Embers",
+    fireShard: "Fire Shards",
+    fullHeal: "Full Heals",
+    iceShard: "Ice Shards",
+    mysticFragment: "Mystic Fragments",
+    urbanflareSigil: "Urbanflare Sigils",
+    xpMultiplierSpellConsumable01: "Dragon XP Boosts",
+    chest0: "Bronze Chests",
+    chest1: "Silver Chests",
+    chest2: "Gold Chests",
+    chest11: "Platinum Chests",
+    chest27: "Draconic Chests",
+    chest33: "Freedom Chests"
+  };
+
+  function humaniseRewardIdentifier(value) {
+    const identifier =
+      normaliseText(value);
+
+    if (!identifier) {
+      return "";
+    }
+
+    if (REWARD_DISPLAY_NAMES[identifier]) {
+      return REWARD_DISPLAY_NAMES[identifier];
+    }
+
+    return identifier
+      .replace(/[_-]+/g, " ")
+      .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+      .replace(/\bconsumable\b/gi, "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .replace(
+        /^./,
+        character => character.toUpperCase()
+      );
+  }
+
   /* ==========================================================
      PLAYER STATE
      ========================================================== */
@@ -1477,7 +1522,7 @@ function resolveDeckReward(
         identifier
       ]);
 
-    return normaliseText(
+    return humaniseRewardIdentifier(
       name ||
       `Reward ${index + 1}`
     );

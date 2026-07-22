@@ -17,6 +17,23 @@
   const ABOUT_V2_PATTERN =
     /\/ext\/dragonsong\/event\/about_v2(?:\?|$)/i;
 
+  const EVENT_DATA_PATTERN =
+    /\/ext\/dragonsong\/events\/get_params_and_data(?:\/season)?(?:\?|$)/i;
+
+  const REWARD_POOL_KEYS = [
+    "epic_items",
+    "legendary_items",
+    "epic_plat_items",
+    "legendary_plat_items",
+    "mythic_plat_items",
+    "Epic_DragFrag_Tier3_Resources",
+    "Legendary_DragFrag_Tier3_Resources",
+    "Mythic_DragFrag_Tier3_Resources",
+    "epic_freedom_items",
+    "legendary_freedom_items",
+    "mythic_freedom_items"
+  ];
+
   function decodeUtf8Base64(value) {
     const binary = window.atob(value);
 
@@ -89,6 +106,155 @@
     });
 
     return score;
+  }
+
+  function findRewardDropCandidates(
+    value,
+    candidates = [],
+    path = [],
+    visited = new WeakSet()
+  ) {
+    if (!value || typeof value !== "object") {
+      return candidates;
+    }
+
+    if (visited.has(value)) {
+      return candidates;
+    }
+
+    visited.add(value);
+
+    const drops = value.drops;
+
+    if (
+      drops &&
+      typeof drops === "object" &&
+      !Array.isArray(drops)
+    ) {
+      const availablePools =
+        REWARD_POOL_KEYS.filter(
+          key => Array.isArray(drops[key])
+        );
+
+      if (availablePools.length) {
+        candidates.push({
+          drops,
+          path,
+          score:
+            availablePools.length * 1000 +
+            availablePools.reduce(
+              (total, key) =>
+                total + drops[key].length,
+              0
+            )
+        });
+      }
+    }
+
+    Object.entries(value).forEach(
+      ([key, child]) => {
+        findRewardDropCandidates(
+          child,
+          candidates,
+          [...path, key],
+          visited
+        );
+      }
+    );
+
+    return candidates;
+  }
+
+  function extractRewardDropsFromHar(har) {
+    const entries = har?.log?.entries;
+
+    if (!Array.isArray(entries)) {
+      return null;
+    }
+
+    const candidates = [];
+
+    entries.forEach((entry, entryIndex) => {
+      const url = String(entry?.request?.url || "");
+
+      if (!EVENT_DATA_PATTERN.test(url)) {
+        return;
+      }
+
+      const responseText = getResponseText(entry);
+
+      if (!responseText) {
+        return;
+      }
+
+      try {
+        const payload = JSON.parse(responseText);
+
+        findRewardDropCandidates(payload)
+          .forEach(candidate => {
+            candidates.push({
+              ...candidate,
+              entryIndex,
+              url
+            });
+          });
+      } catch (error) {
+        console.warn(
+          "[Chest Companion] Ignored unreadable event reward data.",
+          error
+        );
+      }
+    });
+
+    candidates.sort((left, right) => {
+      if (right.score !== left.score) {
+        return right.score - left.score;
+      }
+
+      return right.entryIndex - left.entryIndex;
+    });
+
+    return candidates[0] || null;
+  }
+
+  function attachRewardDrops(
+    eventPayload,
+    rewardDrops
+  ) {
+    if (!rewardDrops) {
+      return eventPayload;
+    }
+
+    const payload = structuredClone(eventPayload);
+    const visited = new WeakSet();
+
+    function visit(value) {
+      if (
+        !value ||
+        typeof value !== "object" ||
+        visited.has(value)
+      ) {
+        return;
+      }
+
+      visited.add(value);
+
+      const params = value?.gacha?.params;
+
+      if (
+        params?.deck_indices &&
+        params?.decks
+      ) {
+        params.drops =
+          structuredClone(rewardDrops);
+      }
+
+      Object.values(value).forEach(visit);
+    }
+
+    visit(payload);
+
+    return payload;
   }
 
   function extractAboutV2FromHar(har) {
@@ -176,14 +342,32 @@
     }
 
     const extracted = extractAboutV2FromHar(parsed);
+    const rewardData =
+      extractRewardDropsFromHar(parsed);
+
+    const eventPayload =
+      attachRewardDrops(
+        extracted.payload,
+        rewardData?.drops
+      );
 
     return {
       kind: "har",
-      eventPayload: extracted.payload,
+      eventPayload,
       diagnostics: {
         sourceEntryIndex: extracted.entryIndex,
         sourceUrl: extracted.url,
-        score: extracted.score
+        score: extracted.score,
+        rewardSourceEntryIndex:
+          rewardData?.entryIndex ?? null,
+        rewardSourceUrl:
+          rewardData?.url ?? null,
+        rewardPoolCount:
+          rewardData
+            ? Object.keys(
+                rewardData.drops
+              ).length
+            : 0
       }
     };
   }
@@ -238,6 +422,7 @@
     Object.freeze({
       parseImportText,
       extractAboutV2FromHar,
+      extractRewardDropsFromHar,
       install: installParserWrapper
     });
 
