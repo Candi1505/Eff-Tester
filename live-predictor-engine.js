@@ -38,6 +38,13 @@
     draconic: "Draconic",
     freedom: "Freedom"
   };
+  
+  const CHEST_DECK_KEYS = {
+  gold: "gold_chest",
+  platinum: "platinum_chest",
+  draconic: "dragfrag_chest_tier3",
+  freedom: "freedom_chest"
+};
 
   let state =
     loadPlayerState();
@@ -121,18 +128,20 @@
      PLAYER STATE
      ========================================================== */
 
-  function createDefaultPlayerState() {
-    return {
-      activeChest: "gold",
+   function createDefaultPlayerState() {
+  return {
+    activeChest: "gold",
 
-      observations: {
-        gold: [],
-        platinum: [],
-        draconic: [],
-        freedom: []
-      }
-    };
-  }
+    observations: {
+      gold: [],
+      platinum: [],
+      draconic: [],
+      freedom: []
+    },
+
+    importedGachaIds: []
+  };
+}
 
   function loadPlayerState() {
     const defaults =
@@ -171,9 +180,17 @@
       );
 
       return {
-        activeChest,
-        observations
-      };
+  activeChest,
+  observations,
+
+  importedGachaIds:
+    Array.isArray(
+      saved.importedGachaIds
+    )
+      ? saved.importedGachaIds
+      : []
+};
+      
     } catch (error) {
       console.warn(
         "[Chest Companion] Could not restore predictor progress.",
@@ -730,16 +747,388 @@
      REWARD NORMALISATION
      ========================================================== */
 
-  function getRawDeck(
-    chestType =
-      state.activeChest
+ function getEventDecks() {
+  const eventData =
+    getEventData();
+
+  return isObject(
+    eventData?.decks
+  )
+    ? eventData.decks
+    : {};
+}
+
+function getEventDrops() {
+  const eventData =
+    getEventData();
+
+  return isObject(
+    eventData?.drops
+  )
+    ? eventData.drops
+    : {};
+}
+
+   function getEventDeckIndices() {
+  const eventData =
+    getEventData();
+
+  if (
+    isObject(
+      eventData?.deckIndices
+    )
   ) {
-    return findDeckArray(
-      getChestData(
-        chestType
+    return eventData.deckIndices;
+  }
+
+  if (
+    isObject(
+      eventData?.deck_indices
+    )
+  ) {
+    return eventData.deck_indices;
+  }
+
+  return {};
+}
+
+function getChestDeckKey(
+  chestType =
+    state.activeChest
+) {
+  return CHEST_DECK_KEYS[
+    normaliseChestType(
+      chestType
+    )
+  ];
+}
+
+function getNamedDeck(
+  deckKey
+) {
+  const deck =
+    getEventDecks()?.[
+      deckKey
+    ];
+
+  return Array.isArray(deck)
+    ? deck
+    : [];
+}
+
+function getNamedDrops(
+  deckKey
+) {
+  const drops =
+    getEventDrops()?.[
+      deckKey
+    ];
+
+  return Array.isArray(drops)
+    ? drops
+    : [];
+}
+
+function getNamedDeckIndex(
+  deckKey
+) {
+  return toFiniteNumber(
+    getEventDeckIndices()?.[
+      deckKey
+    ],
+    0
+  ) || 0;
+}
+  
+   function getRawDeck(
+  chestType =
+    state.activeChest
+) {
+  const deckKey =
+    getChestDeckKey(
+      chestType
+    );
+
+  const publishedDeck =
+    getNamedDeck(
+      deckKey
+    );
+
+  if (publishedDeck.length) {
+    return publishedDeck;
+  }
+
+  return findDeckArray(
+    getChestData(
+      chestType
+    )
+  );
+}
+
+    function resolveDropDefinition(
+  deckKey,
+  deckValue
+) {
+  const drops =
+    getNamedDrops(
+      deckKey
+    );
+
+  const numericValue =
+    Number(deckValue);
+
+  if (
+    !Number.isInteger(
+      numericValue
+    ) ||
+    numericValue < 0 ||
+    numericValue >=
+      drops.length
+  ) {
+    return null;
+  }
+
+  return drops[
+    numericValue
+  ] ?? null;
+}
+
+function createDeckCursors() {
+  const cursors = {};
+
+  Object.entries(
+    getEventDeckIndices()
+  ).forEach(
+    ([deckKey, index]) => {
+      cursors[deckKey] =
+        Math.max(
+          0,
+          Math.floor(
+            toFiniteNumber(
+              index,
+              0
+            ) || 0
+          )
+        );
+    }
+  );
+
+  return cursors;
+}
+
+function takeDeckValue(
+  deckKey,
+  cursors
+) {
+  const deck =
+    getNamedDeck(
+      deckKey
+    );
+
+  if (!deck.length) {
+    return null;
+  }
+
+  const rawCursor =
+    toFiniteNumber(
+      cursors[
+        deckKey
+      ],
+      getNamedDeckIndex(
+        deckKey
       )
+    ) || 0;
+
+  const index =
+    (
+      rawCursor %
+      deck.length +
+      deck.length
+    ) %
+    deck.length;
+
+  const value =
+    deck[index];
+
+  cursors[deckKey] =
+    (
+      index + 1
+    ) %
+    deck.length;
+
+  return {
+    deckKey,
+    index,
+    value
+  };
+}
+
+function resolveDeckReward(
+  deckKey,
+  deckValue,
+  cursors,
+  depth = 0,
+  path = []
+) {
+  if (depth > 12) {
+    return {
+      name:
+        "Unresolved Reward",
+
+      code: "",
+
+      amount: null,
+
+      rawValue:
+        cloneValue(
+          deckValue
+        ),
+
+      path:
+        cloneValue(
+          path
+        ),
+
+      unresolved: true
+    };
+  }
+
+  const definition =
+    resolveDropDefinition(
+      deckKey,
+      deckValue
+    );
+
+  if (!definition) {
+    return {
+      name:
+        `Reward ${deckValue}`,
+
+      code:
+        String(deckValue),
+
+      amount: null,
+
+      rawValue:
+        cloneValue(
+          deckValue
+        ),
+
+      path:
+        cloneValue(
+          path
+        ),
+
+      unresolved: true
+    };
+  }
+
+  const nextPath = [
+    ...path,
+    {
+      deckKey,
+      deckValue:
+        cloneValue(
+          deckValue
+        ),
+
+      definition:
+        cloneValue(
+          definition
+        )
+    }
+  ];
+
+  const nestedDeckKey =
+    normaliseText(
+      definition.id
+    );
+
+  if (
+    nestedDeckKey &&
+    getNamedDeck(
+      nestedDeckKey
+    ).length
+  ) {
+    const nestedEntry =
+      takeDeckValue(
+        nestedDeckKey,
+        cursors
+      );
+
+    if (!nestedEntry) {
+      return {
+        ...cloneValue(
+          definition
+        ),
+
+        name:
+          getRewardName(
+            definition
+          ),
+
+        code:
+          getRewardCode(
+            definition
+          ),
+
+        amount:
+          getRewardAmount(
+            definition
+          ),
+
+        rawValue:
+          cloneValue(
+            deckValue
+          ),
+
+        path:
+          nextPath,
+
+        unresolved: true
+      };
+    }
+
+    return resolveDeckReward(
+      nestedDeckKey,
+      nestedEntry.value,
+      cursors,
+      depth + 1,
+      nextPath
     );
   }
+
+  return {
+    ...cloneValue(
+      definition
+    ),
+
+    name:
+      getRewardName(
+        definition
+      ),
+
+    code:
+      getRewardCode(
+        definition
+      ),
+
+    amount:
+      getRewardAmount(
+        definition
+      ),
+
+    rawValue:
+      cloneValue(
+        deckValue
+      ),
+
+    path:
+      nextPath,
+
+    unresolved: false
+  };
+}
 
   function getDefinitionSources(
     chestType =
@@ -1127,72 +1516,80 @@
   }
 
   function getRewardAmount(
-    entry,
-    chestType =
-      state.activeChest
-  ) {
-    const reward =
-      mergeRewardDefinition(
-        entry,
-        chestType
-      );
-
-    const amount =
-      firstDefined([
-        isObject(entry)
-          ? entry.amount
-          : null,
-
-        isObject(entry)
-          ? entry.quantity
-          : null,
-
-        isObject(entry)
-          ? entry.qty
-          : null,
-
-        isObject(entry)
-          ? entry.count
-          : null,
-
-        isObject(entry)
-          ? entry.valueAmount
-          : null,
-
-        isObject(entry)
-          ? entry.value_amount
-          : null,
-
-        isObject(reward)
-          ? reward.amount
-          : null,
-
-        isObject(reward)
-          ? reward.quantity
-          : null,
-
-        isObject(reward)
-          ? reward.qty
-          : null,
-
-        isObject(reward)
-          ? reward.count
-          : null,
-
-        isObject(reward)
-          ? reward.rewardAmount
-          : null,
-
-        isObject(reward)
-          ? reward.reward_amount
-          : null
-      ]);
-
-    return toFiniteNumber(
-      amount,
-      null
+  entry,
+  chestType =
+    state.activeChest
+) {
+  const reward =
+    mergeRewardDefinition(
+      entry,
+      chestType
     );
-  }
+
+  const amount =
+    firstDefined([
+      isObject(entry)
+        ? entry.amount
+        : null,
+
+      isObject(entry)
+        ? entry.quantity
+        : null,
+
+      isObject(entry)
+        ? entry.qty
+        : null,
+
+      isObject(entry)
+        ? entry.count
+        : null,
+
+      isObject(entry)
+        ? entry.mu
+        : null,
+
+      isObject(entry)
+        ? entry.valueAmount
+        : null,
+
+      isObject(entry)
+        ? entry.value_amount
+        : null,
+
+      isObject(reward)
+        ? reward.amount
+        : null,
+
+      isObject(reward)
+        ? reward.quantity
+        : null,
+
+      isObject(reward)
+        ? reward.qty
+        : null,
+
+      isObject(reward)
+        ? reward.count
+        : null,
+
+      isObject(reward)
+        ? reward.mu
+        : null,
+
+      isObject(reward)
+        ? reward.rewardAmount
+        : null,
+
+      isObject(reward)
+        ? reward.reward_amount
+        : null
+    ]);
+
+  return toFiniteNumber(
+    amount,
+    null
+  );
+}
 
   function getMatchValue(entry) {
     if (isObject(entry)) {
@@ -1327,25 +1724,125 @@
   }
 
   function getNormalisedDeck(
-    chestType =
-      state.activeChest
-  ) {
-    const normalised =
-      normaliseChestType(
-        chestType
-      );
+  chestType =
+    state.activeChest
+) {
+  const normalisedChest =
+    normaliseChestType(
+      chestType
+    );
 
+  const mainDeckKey =
+    getChestDeckKey(
+      normalisedChest
+    );
+
+  const rawDeck =
+    getNamedDeck(
+      mainDeckKey
+    );
+
+  if (!rawDeck.length) {
     return getRawDeck(
-      normalised
+      normalisedChest
     ).map(
       (entry, index) =>
         normaliseDeckEntry(
           entry,
           index,
-          normalised
+          normalisedChest
         )
     );
   }
+
+  const cursors =
+    createDeckCursors();
+
+  const mainStartIndex =
+    getNamedDeckIndex(
+      mainDeckKey
+    );
+
+  const resolvedDeck = [];
+
+  for (
+    let offset = 0;
+    offset < rawDeck.length;
+    offset += 1
+  ) {
+    const mainIndex =
+      (
+        mainStartIndex +
+        offset
+      ) %
+      rawDeck.length;
+
+    const rawValue =
+      rawDeck[
+        mainIndex
+      ];
+
+    const resolved =
+      resolveDeckReward(
+        mainDeckKey,
+        rawValue,
+        cursors
+      );
+
+    const reward =
+      normaliseDeckEntry(
+        {
+          ...resolved,
+
+          matchValue: {
+            name:
+              resolved.name,
+
+            code:
+              resolved.code,
+
+            amount:
+              resolved.amount
+          },
+
+          deckValue:
+            rawValue,
+
+          mainDeckKey,
+
+          mainDeckIndex:
+            mainIndex,
+
+          resolutionPath:
+            resolved.path
+        },
+        offset,
+        normalisedChest
+      );
+
+    reward.index =
+      mainIndex;
+
+    reward.position =
+      mainIndex + 1;
+
+    reward.rawDeckValue =
+      cloneValue(
+        rawValue
+      );
+
+    reward.resolutionPath =
+      cloneValue(
+        resolved.path
+      );
+
+    resolvedDeck.push(
+      reward
+    );
+  }
+
+  return resolvedDeck;
+}
 
   function getRewards(
     chestType =
@@ -1631,9 +2128,12 @@
         ),
 
       displayValue:
-        formatDeckValue(
-          reward
-        ),
+  normalisedReward.amount === null
+    ? normalisedReward.name
+    : (
+        `${normalisedReward.name} — ` +
+        `${normalisedReward.amount}`
+      ),
 
       recordedAt:
         new Date()
@@ -2466,35 +2966,717 @@
     return status;
   }
 
+/* ==========================================================
+   HAR GACHA HISTORY
+   ========================================================== */
+
+function getGachaOpenings(
+  gachaData
+) {
+  if (!gachaData) {
+    return [];
+  }
+
+  const possibleArrays = [
+    gachaData.openings,
+    gachaData.history,
+    gachaData.rewardHistory,
+    gachaData.entries,
+    gachaData.results,
+    gachaData.requests
+  ];
+
+  return (
+    possibleArrays.find(
+      Array.isArray
+    ) || []
+  );
+}
+
+function isBonusGachaOpening(
+  opening
+) {
+  const claimType =
+    normaliseText(
+      opening?.claimType ||
+      opening?.claim_type ||
+      opening?.claimOptionsType ||
+      opening?.claim_options_type
+    ).toLowerCase();
+
+  const chestName =
+    normaliseText(
+      opening?.chest ||
+      opening?.chestKey ||
+      opening?.chestType
+    ).toLowerCase();
+
+  return Boolean(
+    opening?.isBonus ||
+    opening?.bonus ||
+    opening?.bonusClaim ||
+    claimType.includes(
+      "bonus"
+    ) ||
+    chestName.includes(
+      "bonus"
+    )
+  );
+}
+
+function normaliseGachaChestType(
+  opening
+) {
+  const possibleValue =
+    normaliseText(
+      opening?.parentChestKey ||
+      opening?.chestKey ||
+      opening?.chestType ||
+      opening?.chest
+    ).toLowerCase();
+
+  if (
+    possibleValue.includes(
+      "platinum"
+    )
+  ) {
+    return "platinum";
+  }
+
+  if (
+    possibleValue.includes(
+      "draconic"
+    ) ||
+    possibleValue.includes(
+      "dragfrag"
+    )
+  ) {
+    return "draconic";
+  }
+
+  if (
+    possibleValue.includes(
+      "freedom"
+    )
+  ) {
+    return "freedom";
+  }
+
+  if (
+    possibleValue.includes(
+      "gold"
+    )
+  ) {
+    return "gold";
+  }
+
+  return null;
+}
+
+function getGachaOpeningTime(
+  opening
+) {
+  const value =
+    firstDefined([
+      opening?.time,
+      opening?.timestamp,
+      opening?.startedDateTime,
+      opening?.recordedAt,
+      opening?.date
+    ]);
+
+  const milliseconds =
+    Date.parse(
+      value || ""
+    );
+
+  return Number.isFinite(
+    milliseconds
+  )
+    ? milliseconds
+    : 0;
+}
+
+function createGachaImportId(
+  opening,
+  index,
+  sourceFile = null
+) {
+  const rewards =
+    Array.isArray(
+      opening?.rewards
+    )
+      ? opening.rewards
+      : [];
+
+  const rewardText =
+    rewards.map(
+      reward => [
+        reward?.category || "",
+        reward?.id || "",
+        reward?.name || "",
+        reward?.quantity ?? ""
+      ].join(":")
+    ).join("|");
+
+  return [
+    typeof sourceFile === "string"
+  ? sourceFile
+  : sourceFile?.name || "",
+    opening?.entry ?? "",
+    opening?.time ||
+      opening?.timestamp ||
+      opening?.startedDateTime ||
+      "",
+    opening?.eventId ||
+      opening?.event_id ||
+      "",
+    opening?.spinType ||
+      opening?.spin_type ||
+      "",
+    opening?.claimType ||
+      opening?.claim_type ||
+      "",
+    opening?.chestKey ||
+      opening?.chest ||
+      "",
+    opening?.count ?? "",
+    rewardText,
+    index
+  ].join("::");
+}
+
+function createGachaRewardValue(
+  opening
+) {
+  const rewards =
+    Array.isArray(
+      opening?.rewards
+    )
+      ? opening.rewards
+      : [];
+
+  if (!rewards.length) {
+    return null;
+  }
+
+  if (rewards.length === 1) {
+    const reward =
+      rewards[0];
+
+    const code =
+      normaliseText(
+        reward?.id ||
+        reward?.code ||
+        reward?.name
+      );
+
+    const name =
+      normaliseText(
+        reward?.name ||
+        reward?.label ||
+        reward?.id ||
+        "Unknown Reward"
+      );
+
+    const amount =
+      toFiniteNumber(
+        reward?.quantity ??
+        reward?.amount ??
+        reward?.count,
+        null
+      );
+
+    return {
+      id:
+        code,
+
+      code,
+
+      name,
+
+      label:
+        name,
+
+      amount,
+
+      quantity:
+        amount,
+
+      category:
+        reward?.category ||
+        "",
+
+      matchValue: {
+        name,
+        code,
+        amount
+      },
+
+      harRewards:
+        cloneValue(
+          rewards
+        )
+    };
+  }
+
+  /*
+   * Some chest results contain multiple reward components.
+   * Keep those together as one observed chest rather than
+   * incorrectly recording each component as a separate chest.
+   */
+  const components =
+    rewards.map(
+      reward => ({
+        code:
+          normaliseText(
+            reward?.id ||
+            reward?.code ||
+            reward?.name
+          ),
+
+        name:
+          normaliseText(
+            reward?.name ||
+            reward?.label ||
+            reward?.id ||
+            "Unknown Reward"
+          ),
+
+        amount:
+          toFiniteNumber(
+            reward?.quantity ??
+            reward?.amount ??
+            reward?.count,
+            null
+          ),
+
+        category:
+          reward?.category ||
+          ""
+      })
+    );
+
+  components.sort(
+    (first, second) =>
+      first.code.localeCompare(
+        second.code
+      )
+  );
+
+  const code =
+    components.map(
+      component =>
+        component.code
+    ).join("|");
+
+  const name =
+    components.map(
+      component => {
+        return component.amount === null
+          ? component.name
+          : (
+              `${component.name} × ` +
+              `${component.amount}`
+            );
+      }
+    ).join(" + ");
+
+  return {
+    id:
+      code,
+
+    code,
+
+    name,
+
+    label:
+      name,
+
+    amount:
+      null,
+
+    components,
+
+    matchValue: {
+      bundle:
+        components.map(
+          component => ({
+            code:
+              component.code,
+
+            amount:
+              component.amount
+          })
+        )
+    },
+
+    harRewards:
+      cloneValue(
+        rewards
+      )
+  };
+}
+
+function importGachaHistory(
+  gachaData,
+  sourceFile = null
+) {
+  const openings =
+    getGachaOpenings(
+      gachaData
+    );
+
+  if (!openings.length) {
+    return {
+      detected: 0,
+      imported: 0,
+      duplicates: 0,
+      bonuses: 0,
+      unsupported: 0,
+      unreadable: 0
+    };
+  }
+
+  if (
+    !Array.isArray(
+      state.importedGachaIds
+    )
+  ) {
+    state.importedGachaIds = [];
+  }
+
+  const importedIds =
+    new Set(
+      state.importedGachaIds
+    );
+
+  const orderedOpenings =
+    openings
+      .map(
+        (opening, index) => ({
+          opening,
+          index,
+          time:
+            getGachaOpeningTime(
+              opening
+            )
+        })
+      )
+      .sort(
+        (first, second) => {
+          if (
+            first.time !==
+            second.time
+          ) {
+            return (
+              first.time -
+              second.time
+            );
+          }
+
+          return (
+            first.index -
+            second.index
+          );
+        }
+      );
+
+  const summary = {
+    detected:
+      openings.length,
+
+    imported: 0,
+    duplicates: 0,
+    bonuses: 0,
+    unsupported: 0,
+    unreadable: 0
+  };
+
+  orderedOpenings.forEach(
+    ({
+      opening,
+      index
+    }) => {
+      const importId =
+        createGachaImportId(
+          opening,
+          index,
+          sourceFile
+        );
+
+      if (
+        importedIds.has(
+          importId
+        )
+      ) {
+        summary.duplicates += 1;
+        return;
+      }
+
+      if (
+        isBonusGachaOpening(
+          opening
+        )
+      ) {
+        /*
+         * Bonus rewards are real history, but they are
+         * not positions in the regular chest sequence.
+         */
+        importedIds.add(
+          importId
+        );
+
+        summary.bonuses += 1;
+        return;
+      }
+
+      const chestType =
+        normaliseGachaChestType(
+          opening
+        );
+
+      if (
+        !chestType ||
+        !isSupportedChest(
+          chestType
+        )
+      ) {
+        importedIds.add(
+          importId
+        );
+
+        summary.unsupported += 1;
+        return;
+      }
+
+      const reward =
+        createGachaRewardValue(
+          opening
+        );
+
+      if (!reward) {
+        importedIds.add(
+          importId
+        );
+
+        summary.unreadable += 1;
+        return;
+      }
+
+      const chestCount =
+        Math.max(
+          1,
+          Math.floor(
+            toFiniteNumber(
+              opening?.count,
+              1
+            ) || 1
+          )
+        );
+
+      /*
+       * A batched opening may return aggregated rewards,
+       * meaning its exact per-chest order cannot safely be
+       * reconstructed. Import single openings into the
+       * sequence solver and retain batches as diagnostics.
+       */
+      if (chestCount !== 1) {
+        importedIds.add(
+          importId
+        );
+
+        summary.unreadable += 1;
+
+        console.warn(
+          "[Chest Companion] A batched HAR opening was not added to the sequence because its individual chest order is unavailable.",
+          opening
+        );
+
+        return;
+      }
+
+      const normalisedReward =
+        normaliseDeckEntry(
+          reward,
+          0,
+          chestType
+        );
+
+      const observation = {
+        number:
+          (
+            state.observations[
+              chestType
+            ]?.length || 0
+          ) + 1,
+
+        chestType,
+
+        name:
+          normalisedReward.name,
+
+        label:
+          normalisedReward.name,
+
+        code:
+          normalisedReward.code,
+
+        amount:
+          normalisedReward.amount,
+
+        quantity: 1,
+        chestCount: 1,
+        chestsOpened: 1,
+
+        value:
+          cloneValue(
+            reward.matchValue
+          ),
+
+        matchValue:
+          cloneValue(
+            reward.matchValue
+          ),
+
+        reward:
+          cloneValue(
+            reward
+          ),
+
+        raw:
+          cloneValue(
+            reward
+          ),
+
+        source:
+          "har",
+
+        importedFromHar:
+          true,
+
+        gachaImportId:
+          importId,
+
+        gachaEntry:
+          opening?.entry ??
+          null,
+
+        spinType:
+          opening?.spinType ??
+          opening?.spin_type ??
+          null,
+
+        claimType:
+          opening?.claimType ??
+          opening?.claim_type ??
+          null,
+
+        eventId:
+          opening?.eventId ??
+          opening?.event_id ??
+          null,
+
+        displayValue:
+          normalisedReward.amount ===
+            null
+            ? normalisedReward.name
+            : (
+                `${normalisedReward.name} — ` +
+                `${normalisedReward.amount}`
+              ),
+
+        recordedAt:
+          firstDefined([
+            opening?.time,
+            opening?.timestamp,
+            opening?.startedDateTime,
+            new Date()
+              .toISOString()
+          ])
+      };
+
+      state.observations[
+        chestType
+      ].push(
+        observation
+      );
+
+      importedIds.add(
+        importId
+      );
+
+      summary.imported += 1;
+    }
+  );
+
+  state.importedGachaIds =
+    Array.from(
+      importedIds
+    );
+
+  savePlayerState();
+
+  console.info(
+    "[Chest Companion] HAR history import complete.",
+    summary
+  );
+
+  return summary;
+}
+
   /* ==========================================================
      EVENT LISTENERS
      ========================================================== */
 
   window.addEventListener(
-    "noir:event-imported",
-    event => {
-      const eventData =
-        event?.detail?.eventData ||
-        window.currentEventData;
+  "noir:event-imported",
+  event => {
+    const eventData =
+      event?.detail?.eventData ||
+      window.currentEventData;
 
-      const sourceFile =
-        event?.detail?.sourceFile ||
-        window.currentEventSourceFile ||
-        null;
+    const gachaData =
+      event?.detail?.gachaData ||
+      window.currentGachaData ||
+      null;
 
-      if (
-        eventData &&
-        typeof eventData === "object"
-      ) {
-        saveCachedPublishedEvent(
-          eventData,
-          sourceFile
-        );
-      }
+    const sourceFile =
+      event?.detail?.sourceFile ||
+      window.currentEventSourceFile ||
+      null;
 
-      refresh();
+    if (
+      eventData &&
+      typeof eventData === "object"
+    ) {
+      saveCachedPublishedEvent(
+        eventData,
+        sourceFile
+      );
     }
-  );
+
+    const gachaSummary =
+      importGachaHistory(
+        gachaData,
+        sourceFile
+      );
+
+    window.dispatchEvent(
+      new CustomEvent(
+        "chest-companion:gacha-history-imported",
+        {
+          detail: {
+            ...gachaSummary,
+            sourceFile
+          }
+        }
+      )
+    );
+
+    refresh();
+  }
+);
 
   window.addEventListener(
     "chest-companion:event-published",
@@ -2545,6 +3727,9 @@
       getUniqueDeckValues,
 
       getObservations,
+
+      getGachaOpenings,
+      importGachaHistory,
 
       recordReward,
       recordObservation,
