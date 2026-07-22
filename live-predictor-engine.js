@@ -199,6 +199,37 @@ const CHEST_DIRECT_BONUS_POOL_KEYS = {
       );
   }
 
+  function getRewardDisplayName(
+    reward,
+    fallbackIndex = 0
+  ) {
+    const currentName =
+      normaliseText(
+        reward?.name ||
+        reward?.label
+      );
+    const code =
+      normaliseText(
+        reward?.code ||
+        reward?.id
+      );
+
+    if (
+      currentName &&
+      !/^Reward\s+\d+$/i.test(currentName) &&
+      currentName.toLowerCase() !==
+        "unresolved reward"
+    ) {
+      return currentName;
+    }
+
+    return (
+      humaniseRewardIdentifier(code) ||
+      currentName ||
+      `Reward ${fallbackIndex + 1}`
+    );
+  }
+
   /* ==========================================================
      PLAYER STATE
      ========================================================== */
@@ -3752,6 +3783,12 @@ function valuesMatch(
           deck[index];
       }
 
+      const displayName =
+        getRewardDisplayName(
+          reward,
+          offset - 1
+        );
+
       upcoming.push({
         number:
           offset,
@@ -3762,10 +3799,10 @@ function valuesMatch(
           index + 1,
 
         name:
-          reward.name,
+          displayName,
 
         label:
-          reward.name,
+          displayName,
 
         code:
           reward.code,
@@ -3795,9 +3832,9 @@ function valuesMatch(
 
         displayValue:
           reward.amount === null
-            ? reward.name
+            ? displayName
             : (
-                `${reward.name} — ` +
+                `${displayName} — ` +
                 `${reward.amount}`
               )
       });
