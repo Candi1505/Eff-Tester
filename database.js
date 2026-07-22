@@ -449,53 +449,30 @@ async savePredictor({
     );
   }
 
-  /*
-   * First deactivate the currently active
-   * predictor for this chest type.
-   */
-  const {
-    error: deactivateError
-  } = await supabaseClient
-    .from("predictors")
-    .update({
-      active: false
-    })
-    .eq(
-      "chest_type",
-      normalisedChestType
-    )
-    .eq("active", true);
-
-  if (deactivateError) {
-    throw deactivateError;
-  }
-
-  /*
-   * Then upload the replacement and mark
-   * it as the active predictor.
-   */
   const {
     data,
     error
   } = await supabaseClient
-    .from("predictors")
-    .insert({
-      chest_type: normalisedChestType,
-      version:
+    .rpc(
+      "publish_noir_predictor",
+      {
+        p_chest_type:
+          normalisedChestType,
+        p_version:
         version ||
-        new Date().toISOString(),
-      predictor_data: predictorData,
-      active: true,
-      uploaded_by: uploadedBy
-    })
-    .select()
-    .single();
+          Math.floor(Date.now() / 1000),
+        p_predictor_data:
+          predictorData
+      }
+    );
 
   if (error) {
     throw error;
   }
 
-  return data;
+  return Array.isArray(data)
+    ? data[0]
+    : data;
 },
 
 async getActivePredictors() {

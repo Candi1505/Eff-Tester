@@ -110,7 +110,7 @@
     style.id = STYLE_ID;
 
     style.textContent = `
-          #${OVERLAY_ID} {
+      #${OVERLAY_ID} {
         position: fixed;
         inset: 0;
         z-index: 1000000;
@@ -118,6 +118,9 @@
         display: none;
         overflow-x: hidden;
         overflow-y: auto;
+        width: 100%;
+        max-width: 100vw;
+        overscroll-behavior: contain;
 
         padding:
           max(14px, env(safe-area-inset-top))
@@ -161,7 +164,9 @@
 
       .lp-shell {
         width: min(100%, 760px);
+        max-width: 100%;
         margin: 0 auto;
+        overflow-x: clip;
       }
 
       .lp-topbar {
@@ -264,6 +269,8 @@
       }
 
       .lp-card {
+        max-width: 100%;
+        overflow: hidden;
         position: relative;
 
         margin-top: 15px;
@@ -1086,6 +1093,7 @@
 
         gap: 12px;
         width: 100%;
+        max-width: 100%;
         min-height: 50px;
         padding: 11px 12px;
 
@@ -1134,10 +1142,14 @@
       }
 
       .lp-reward-option-main {
+        display: block;
+        flex: 1 1 auto;
         min-width: 0;
+        overflow: hidden;
       }
 
       .lp-reward-option-name {
+        display: block;
         color: #d3d3d3;
 
         font-size: 14px;
@@ -1148,6 +1160,7 @@
       }
 
       .lp-reward-option-code {
+        display: block;
         margin-top: 3px;
 
         color: #707070;
@@ -1166,6 +1179,7 @@
         font-size: 13px;
         font-weight: 900;
         white-space: nowrap;
+        text-align: right;
       }
 
       .lp-recorder-selection {
@@ -4889,6 +4903,9 @@
           : String(
               reward.amount
             );
+
+      amountInput.readOnly =
+        reward.amount !== null;
     }
 
     renderRecorder(status);
