@@ -1225,6 +1225,29 @@
         line-height: 1.4;
       }
 
+      .lp-bonus-toggle {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-height: 48px;
+        margin-top: 14px;
+        padding: 12px 14px;
+        border: 1px solid rgba(217, 191, 118, 0.28);
+        border-radius: 14px;
+        background: rgba(185, 149, 66, 0.08);
+        color: #d9bf76;
+        font-size: 14px;
+        font-weight: 800;
+        cursor: pointer;
+      }
+
+      .lp-bonus-toggle input {
+        width: 22px;
+        height: 22px;
+        margin: 0;
+        accent-color: #b99542;
+      }
+
       .lp-recorder-actions {
         display: grid;
         grid-template-columns:
@@ -2206,6 +2229,16 @@
                 </select>
               </div>
             </div>
+
+            <label class="lp-bonus-toggle" for="lpBonusChest">
+              <input
+                id="lpBonusChest"
+                type="checkbox"
+              />
+              <span>
+                This reward came from a bonus chest
+              </span>
+            </label>
 
             <div class="lp-recorder-actions">
               <button
@@ -3198,17 +3231,38 @@
             return true;
           }
 
-          const aliases =
-            reward.code === "breedingToken"
-              ? [
+          const aliases = [];
+
+          if (reward.code === "breedingToken") {
+            aliases.push(
                   "egg",
                   "eggs",
                   "egg token",
                   "egg tokens",
                   "breeding token",
                   "breeding tokens"
-                ]
-              : [];
+            );
+          }
+
+          const speedupAliases = {
+            expediteConsumable1: ["15 min", "15min"],
+            expediteConsumable1a: ["30 min", "30min"],
+            expediteConsumable2: ["1 hour", "1hr"],
+            expediteConsumable3: ["3 hour", "3hr"],
+            expediteConsumable4: ["12 hour", "12hr"]
+          }[reward.code];
+
+          if (speedupAliases) {
+            aliases.push(
+              ...speedupAliases,
+              ...speedupAliases.map(
+                value => `${value} speedup`
+              ),
+              ...speedupAliases.map(
+                value => `${value} speedups`
+              )
+            );
+          }
 
           const searchableText = [
             reward.name,
@@ -3684,7 +3738,11 @@
       name: String(name),
       code: String(code),
       amount,
-      quantity
+      quantity,
+      isBonus: Boolean(
+        entry.isBonus ??
+        entry.bonus
+      )
     };
   }
 
@@ -3754,6 +3812,10 @@
               );
             }
 
+            if (reward.isBonus) {
+              details.unshift("Bonus chest");
+            }
+
             return `
               <div class="lp-history-item">
                 <div class="lp-history-left">
@@ -3777,7 +3839,7 @@
                 </div>
 
                 <div class="lp-history-number">
-                  ${index + 1}
+                  ${reward.isBonus ? "BONUS" : index + 1}
                 </div>
               </div>
             `;
@@ -4594,7 +4656,7 @@
     );
   }
   
-    function resetRecorderInputs() {
+  function resetRecorderInputs() {
     selectedRewardState = {
       chestType: null,
       key: null
@@ -4615,6 +4677,11 @@
         "lpRewardQuantity"
       );
 
+    const bonusInput =
+      document.getElementById(
+        "lpBonusChest"
+      );
+
     if (searchInput) {
       searchInput.value = "";
     }
@@ -4625,6 +4692,10 @@
 
     if (quantityInput) {
       quantityInput.value = "1";
+    }
+
+    if (bonusInput) {
+      bonusInput.checked = false;
     }
   }
 
@@ -4989,6 +5060,11 @@
         "lpRewardQuantity"
       );
 
+    const bonusInput =
+      document.getElementById(
+        "lpBonusChest"
+      );
+
     const amount =
       Number(
         amountInput?.value
@@ -5047,6 +5123,12 @@
       amount,
 
       quantity,
+
+      isBonus:
+        Boolean(bonusInput?.checked),
+
+      bonus:
+        Boolean(bonusInput?.checked),
 
       chestCount:
         quantity,

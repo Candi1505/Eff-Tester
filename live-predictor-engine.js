@@ -140,9 +140,11 @@
     mysticFragment: "Mystic Fragments",
     urbanflareSigil: "Urbanflare Sigils",
     xpMultiplierSpellConsumable01: "Dragon XP Boosts",
-    expediteConsumable2: "3-Hour Speedups",
-    expediteConsumable3: "12-Hour Speedups",
-    expediteConsumable4: "24-Hour Speedups",
+    expediteConsumable1: "15-Minute Speedups",
+    expediteConsumable1a: "30-Minute Speedups",
+    expediteConsumable2: "1-Hour Speedups",
+    expediteConsumable3: "3-Hour Speedups",
+    expediteConsumable4: "12-Hour Speedups",
     foodConsumable2: "Food Packs",
     chest0: "Bronze Chests",
     chest1: "Silver Chests",
@@ -2325,7 +2327,8 @@ function valuesMatch(
   function createObservation(
     reward,
     chestType,
-    quantity = 1
+    quantity = 1,
+    isBonus = false
   ) {
     const normalisedChest =
       normaliseChestType(
@@ -2369,6 +2372,12 @@ function valuesMatch(
 
       chestsOpened:
         quantity,
+
+      isBonus:
+        Boolean(isBonus),
+
+      bonus:
+        Boolean(isBonus),
 
       value:
         cloneValue(
@@ -2456,6 +2465,12 @@ function valuesMatch(
         )
       );
 
+    const isBonus = Boolean(
+      resolvedPayload.isBonus ??
+      resolvedPayload.bonus ??
+      resolvedPayload.bonusClaim
+    );
+
     const added = [];
 
     for (
@@ -2467,7 +2482,8 @@ function valuesMatch(
         createObservation(
           reward,
           normalisedChest,
-          1
+          1,
+          isBonus
         );
 
       state.observations[
@@ -2701,6 +2717,10 @@ function valuesMatch(
     const observations =
       getObservations(
         chestType
+      ).filter(
+        observation =>
+          !observation?.isBonus &&
+          !observation?.bonus
       );
 
     if (
@@ -2819,6 +2839,10 @@ function valuesMatch(
     const observations =
       getObservations(
         normalised
+      ).filter(
+        observation =>
+          !observation?.isBonus &&
+          !observation?.bonus
       );
 
     if (!deck.length) {
@@ -3018,8 +3042,28 @@ function valuesMatch(
       freedom: 15
     }[normalised] || null;
 
+    const recordedHistory =
+      getObservations(normalised);
+
+    let lastBonusIndex = -1;
+
+    for (
+      let index = recordedHistory.length - 1;
+      index >= 0;
+      index -= 1
+    ) {
+      if (
+        recordedHistory[index]?.isBonus ||
+        recordedHistory[index]?.bonus
+      ) {
+        lastBonusIndex = index;
+        break;
+      }
+    }
+
     let regularSinceBonus = bonusEvery
-      ? getObservations(normalised)
+      ? recordedHistory
+          .slice(lastBonusIndex + 1)
           .filter(
             observation =>
               !observation?.isBonus &&
