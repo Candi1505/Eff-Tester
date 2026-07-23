@@ -40,13 +40,17 @@
     expediteConsumable4: "12-Hour Speedups",
     increaseAttack1: "Tower Attack Boosts",
     increaseHP1: "Tower HP Boosts",
+    innerFire01: "Inner Fire",
     innerFireConsumable: "Inner Fire",
     energyPack: "Energy Packs",
     dragonHealPotion: "Dragon Heal Potions",
     mysticFragment: "Mystic Fragments",
-    chest0: "Freedom Chests",
+    chest0: "Bronze Chests",
+    chest1: "Silver Chests",
     chest2: "Gold Chests",
-    chest33: "Bronze Chests"
+    chest11: "Platinum Chests",
+    chest27: "Draconic Chests",
+    chest33: "Freedom Chests"
   };
 
   function livePredictorOverlay() {
