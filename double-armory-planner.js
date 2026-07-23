@@ -222,23 +222,24 @@
     const style = document.createElement("style");
     style.id = "noirDoubleArmoryStyles";
     style.textContent = `
-      #${OVERLAY_ID}{position:fixed;inset:0;z-index:2147483647;background:#050505;color:#ddd;overflow:auto;font-family:inherit;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
+      #${OVERLAY_ID}{position:fixed;inset:0;z-index:2147483647;background:radial-gradient(circle at top,#17130d 0,#050505 34%);color:#e8e5de;overflow:auto;font-family:inherit;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
       .da-shell{width:min(1100px,100%);margin:auto;padding:18px}
-      .da-top{position:sticky;top:0;z-index:3;display:flex;justify-content:space-between;gap:14px;align-items:center;padding:18px;background:rgba(5,5,5,.96);border-bottom:1px solid #3c321c}
-      .da-eyebrow{margin:0;color:#c7a956;font-size:12px;font-weight:900;letter-spacing:.22em}
+      .da-top{position:sticky;top:0;z-index:3;display:flex;justify-content:space-between;gap:14px;align-items:center;padding:18px;background:rgba(5,5,5,.97);border-bottom:1px solid #a8873a;box-shadow:0 12px 30px rgba(0,0,0,.45)}
+      .da-eyebrow{margin:0;color:#c19a4a;font-size:12px;font-weight:900;letter-spacing:.22em}
       .da-top h1{margin:6px 0 0;font-size:clamp(25px,6vw,42px)}
-      .da-close{width:50px;height:50px;border-radius:50%;border:1px solid #444;background:#111;color:#ddd;font-size:34px}
-      .da-summary{margin:18px 0;padding:18px;border:1px solid #4d3d19;border-radius:20px;background:linear-gradient(145deg,#1b170c,#090909)}
-      .da-tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:16px 0}.da-tab{padding:12px 6px;border:1px solid #49402c;border-radius:13px;background:#111;color:#aaa;font:inherit;font-weight:900}.da-tab[aria-selected="true"]{background:#3b3018;color:#f2d16e;border-color:#b89542}
-      .da-recommend{color:#efd37f;font-size:22px;font-weight:900}
+      .da-close{width:50px;height:50px;border-radius:50%;border:1px solid #51452e;background:#111;color:#e8e5de;font-size:34px}
+      .da-summary{margin:18px 0;padding:18px;border:1px solid #a8873a;border-radius:20px;background:linear-gradient(145deg,#17130d,#090909);box-shadow:inset 0 1px rgba(226,198,110,.15)}
+      .da-tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:16px 0}.da-tab{padding:12px 6px;border:1px solid #3a352b;border-radius:13px;background:#111;color:#aaa;font:inherit;font-weight:900}.da-tab[aria-selected="true"]{background:linear-gradient(145deg,#4b3c1d,#20190d);color:#e2c66e;border-color:#c19a4a;box-shadow:0 0 18px rgba(193,154,74,.18)}
+      .da-recommend{color:#e2c66e;font-size:22px;font-weight:900}
       .da-note{margin-top:8px;color:#999;line-height:1.5}
-      .da-table{display:grid;grid-template-columns:52px minmax(0,1fr) minmax(0,1fr);border:1px solid #333;border-radius:18px;overflow:hidden}
-      .da-head{position:sticky;top:87px;z-index:2;background:#171717!important;color:#fff!important;font-weight:900;text-align:center}
-      .da-cell{min-width:0;padding:13px 10px;border-right:1px solid #333;border-bottom:1px solid #333;background:#0c0c0c}
+      .da-table{display:grid;grid-template-columns:52px minmax(0,1fr) minmax(0,1fr);border:1px solid #3d372c;border-radius:18px;overflow:hidden;box-shadow:0 16px 40px rgba(0,0,0,.35)}
+      .da-head{position:sticky;top:87px;z-index:2;background:#171717!important;color:#e8e5de!important;font-weight:900;text-align:center}
+      .da-head-assault{background:linear-gradient(145deg,#8f3645,#421820)!important}.da-head-breeding{background:linear-gradient(145deg,#257a68,#123f36)!important}
+      .da-cell{min-width:0;padding:13px 10px;border-right:1px solid #302d28;border-bottom:1px solid #302d28;background:#0c0c0c}
       .da-cell:nth-child(3n){border-right:0}.da-number{text-align:center;color:#d6bd72;font-weight:900}
       .da-reward{display:flex;flex-direction:column;gap:5px}.da-name{font-weight:900;line-height:1.25}.da-meta{color:#888;font-size:12px}.da-amount{color:#d6bd72;font-weight:900}
-      .da-epic{background:rgba(111,68,150,.13)}.da-legendary{background:rgba(161,89,30,.15)}.da-mythic{background:rgba(45,116,126,.18)}
-      .da-favourite .da-name::after{content:' ★';color:#f2d16e}.da-bonus{box-shadow:inset 0 -3px #52c9a1}
+      .da-epic{background:linear-gradient(90deg,rgba(121,101,143,.14),#0c0c0c 38%);box-shadow:inset 4px 0 #79658f}.da-legendary{background:linear-gradient(90deg,rgba(193,154,74,.15),#0c0c0c 38%);box-shadow:inset 4px 0 #c19a4a}.da-mythic{background:linear-gradient(90deg,rgba(138,167,181,.16),#0c0c0c 38%);box-shadow:inset 4px 0 #8aa7b5}.da-unknown{box-shadow:inset 4px 0 #555}
+      .da-favourite .da-name::after{content:' ★';color:#e2c66e}.da-bonus{border-bottom:3px solid #2f8f78}
       #${BUTTON_ID}{width:100%;margin-top:14px;padding:15px;border:1px solid #a8873a;border-radius:15px;background:linear-gradient(180deg,#d7bd70,#aa8436);color:#080808;font:inherit;font-weight:900}
       @media(max-width:600px){.da-shell{padding:0 8px 18px}.da-cell{padding:11px 7px}.da-name{font-size:13px}.da-meta{font-size:10px}.da-amount{font-size:12px}.da-table{grid-template-columns:38px minmax(0,1fr) minmax(0,1fr)}}
     `;
@@ -292,7 +293,7 @@
           <div class="da-note">Comparing ${escapeHTML(chest?.label || selectedChestType)} rewards. Assault and Breeding are detected automatically even when their event numbers change. The green line marks each ${chest?.bonusEvery || 30}-chest bonus point.</div>
         </section>
         <div class="da-table">
-          <div class="da-cell da-head">#</div><div class="da-cell da-head">🟠 Assault</div><div class="da-cell da-head">🔵 Breeding</div>
+          <div class="da-cell da-head">#</div><div class="da-cell da-head da-head-assault">◆ Assault</div><div class="da-cell da-head da-head-breeding">✦ Breeding</div>
           ${assault.map((left, index) => `
             <div class="da-cell da-number">${index + 1}${left.bonusAfter ? " 🎁" : ""}</div>
             ${rewardMarkup(left)}${rewardMarkup(breeding[index])}
