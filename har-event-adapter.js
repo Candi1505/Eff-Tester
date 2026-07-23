@@ -20,6 +20,12 @@
   const EVENT_DATA_PATTERN =
     /\/ext\/dragonsong\/events\/get_params_and_data(?:\/season)?(?:\?|$)/i;
 
+  const CURRENT_EVENT_PAGE_PATTERN =
+    /\/dragons\/event\/current(?:\?|$)/i;
+
+  const EMBEDDED_EVENT_DATA_MARKER =
+    "window.params_and_data";
+
   const REWARD_POOL_KEYS = [
     "epic_items",
     "legendary_items",
@@ -70,6 +76,96 @@
         `${label} contained invalid JSON: ${error.message}`
       );
     }
+  }
+
+  /*
+   * Newer event pages embed the same data that older clients
+   * returned from get_params_and_data. Parse the assigned JSON
+   * object without evaluating any of the surrounding page.
+   */
+  function extractAssignedJsonObject(
+    text,
+    marker = EMBEDDED_EVENT_DATA_MARKER
+  ) {
+    const markerIndex = text.indexOf(marker);
+
+    if (markerIndex < 0) {
+      return null;
+    }
+
+    const objectStart = text.indexOf(
+      "{",
+      markerIndex + marker.length
+    );
+
+    if (objectStart < 0) {
+      return null;
+    }
+
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+
+    for (
+      let index = objectStart;
+      index < text.length;
+      index += 1
+    ) {
+      const character = text[index];
+
+      if (inString) {
+        if (escaped) {
+          escaped = false;
+        } else if (character === "\\") {
+          escaped = true;
+        } else if (character === "\"") {
+          inString = false;
+        }
+
+        continue;
+      }
+
+      if (character === "\"") {
+        inString = true;
+      } else if (character === "{") {
+        depth += 1;
+      } else if (character === "}") {
+        depth -= 1;
+
+        if (depth === 0) {
+          return JSON.parse(
+            text.slice(objectStart, index + 1)
+          );
+        }
+      }
+    }
+
+    throw new Error(
+      "The embedded live-event data was incomplete."
+    );
+  }
+
+  function extractEventDataPayload(entry) {
+    const url = String(entry?.request?.url || "");
+
+    if (
+      !EVENT_DATA_PATTERN.test(url) &&
+      !CURRENT_EVENT_PAGE_PATTERN.test(url)
+    ) {
+      return null;
+    }
+
+    const responseText = getResponseText(entry);
+
+    if (!responseText) {
+      return null;
+    }
+
+    if (CURRENT_EVENT_PAGE_PATTERN.test(url)) {
+      return extractAssignedJsonObject(responseText);
+    }
+
+    return JSON.parse(responseText);
   }
 
   function scoreEventPayload(payload) {
@@ -180,18 +276,19 @@
     entries.forEach((entry, entryIndex) => {
       const url = String(entry?.request?.url || "");
 
-      if (!EVENT_DATA_PATTERN.test(url)) {
-        return;
-      }
-
-      const responseText = getResponseText(entry);
-
-      if (!responseText) {
+      if (
+        !EVENT_DATA_PATTERN.test(url) &&
+        !CURRENT_EVENT_PAGE_PATTERN.test(url)
+      ) {
         return;
       }
 
       try {
-        const payload = JSON.parse(responseText);
+        const payload = extractEventDataPayload(entry);
+
+        if (!payload) {
+          return;
+        }
 
         findRewardDropCandidates(payload)
           .forEach(candidate => {
@@ -244,11 +341,13 @@
 
     entries.forEach(entry => {
       const url = String(entry?.request?.url || "");
-      if (!EVENT_DATA_PATTERN.test(url)) return;
-      const responseText = getResponseText(entry);
-      if (!responseText) return;
+      if (
+        !EVENT_DATA_PATTERN.test(url) &&
+        !CURRENT_EVENT_PAGE_PATTERN.test(url)
+      ) return;
       try {
-        const payload = JSON.parse(responseText);
+        const payload = extractEventDataPayload(entry);
+        if (!payload) return;
         const containers = [
           payload?.params_and_data?.gacha,
           payload?.gacha,
