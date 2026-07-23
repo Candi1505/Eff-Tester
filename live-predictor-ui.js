@@ -2867,13 +2867,46 @@
       return [];
     }
 
+    /*
+     * Always ask the engine for its resolved catalogue first.
+     * A chest status also contains the raw deck, which can be a list of
+     * numeric drop indexes. Treating that raw list as rewards makes the
+     * search box look populated internally while names such as "Egg",
+     * "Breeding" and "Sigil" can never match.
+     */
+    if (
+      typeof Engine.getRewards ===
+      "function"
+    ) {
+      try {
+        const resolvedRewards =
+          Engine.getRewards(
+            chest.chestType
+          );
+
+        if (
+          Array.isArray(
+            resolvedRewards
+          ) &&
+          resolvedRewards.length
+        ) {
+          return resolvedRewards;
+        }
+      } catch (error) {
+        console.warn(
+          "[Chest Companion] Could not read the resolved reward catalogue.",
+          error
+        );
+      }
+    }
+
     const directCandidates = [
       chest.rewards,
-      chest.deck,
       chest.entries,
       chest.items,
       chest.sequence,
-      chest.data
+      chest.data,
+      chest.deck
     ];
 
     for (
@@ -2886,7 +2919,6 @@
     }
 
     const engineMethods = [
-      "getRewards",
       "getDeck",
       "getChestDeck",
       "getChestData"
