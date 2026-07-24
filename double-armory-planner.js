@@ -51,10 +51,26 @@
     chest11: "Platinum Chests",
     chest27: "Draconic Chests",
     chest33: "Freedom Chests",
+    E20Q2FestiveHunterDragonEvolutionFragment: "Zilch Shards",
+    E20Q3FestiveWarriorDragonEvolutionFragment: "Hueso Shards",
+    E20Q4FestiveInvokerDragonEvolutionFragment: "Nebulon Shards",
+    E21Q4FestiveHunterDragonEvolutionFragment: "Krampi Shards",
+    E22Q1FestiveWarriorDragonEvolutionFragment: "Garrvox Shards",
+    E22Q2FestiveHunterDragonEvolutionFragment: "Grumuk Shards",
+    E22Q3FestiveInvokerDragonEvolutionFragment: "Pezizo Shards",
+    E22Q4FestiveHunterDragonEvolutionFragment: "Re'gyn Shards",
+    E22Q4FestiveSorcererDragonEvolutionFragment: "Jinhen Shards",
+    E23Q2FestiveHunterDragonEvolutionFragment: "Vesolance Shards",
+    E23Q3FestiveSorcererDragonEvolutionFragment: "Jinhen Shards",
+    E23Q4FestiveHunterDragonEvolutionFragment: "Bonewrack Shards",
+    E24Q1FestiveWarriorDragonEvolutionFragment: "Nocturnus Shards",
+    E24Q2FestiveHunterDragonEvolutionFragment: "Photonix Shards",
+    E24Q4FestiveHunterDragonEvolutionFragment: "Razor Shards",
     E25Q1FestiveSorcererDragonEvolutionFragment: "Volcaryx Shards",
     E25Q2FestiveWarriorDragonEvolutionFragment: "Riphorn Shards",
     E25Q3FestiveWarriorDragonEvolutionFragment: "Eldrath Shards",
-    E25Q4FestiveHunterDragonEvolutionFragment: "Drekgor Shards"
+    E25Q4FestiveHunterDragonEvolutionFragment: "Drekgor Shards",
+    E26Q1FestiveInvokerDragonEvolutionFragment: "Voltgar Shards"
   };
 
   function livePredictorOverlay() {
