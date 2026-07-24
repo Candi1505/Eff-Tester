@@ -152,7 +152,7 @@
     cmCrystalfireGemstone: "Fire Gemstones",
     cmCrystaliceGemstone: "Ice Gemstones",
     cmCrystalwindGemstone: "Wind Gemstones",
-    increaseAttack1: "Tower Attack Boosts",
+    increaseAttack1: "+30% Dragon Attack",
     increaseHP1: "Tower HP Boosts",
     innerFire01: "Inner Fire",
     innerFireConsumable: "Inner Fire",
