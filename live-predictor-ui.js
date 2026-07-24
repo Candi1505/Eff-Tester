@@ -692,7 +692,7 @@
       .lp-chest-stats {
         display: grid;
         grid-template-columns:
-          repeat(2, minmax(0, 1fr));
+          minmax(0, 1fr);
 
         gap: 8px;
         margin-top: 13px;
